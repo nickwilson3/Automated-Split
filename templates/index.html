@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jury Optimization Tool</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container mt-5">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header text-center">
+                        <h2>Jury Optimization Tool</h2>
+                    </div>
+                    <div class="card-body">
+                        {% with messages = get_flashed_messages() %}
+                            {% if messages %}
+                                {% for message in messages %}
+                                    <div class="alert alert-danger">{{ message }}</div>
+                                {% endfor %}
+                            {% endif %}
+                        {% endwith %}
+                        
+                        <form action="{{ url_for('upload_file') }}" method="post" enctype="multipart/form-data">
+                            <div class="mb-3">
+                                <label for="file" class="form-label">Upload Juror Data (Excel file)</label>
+                                <input type="file" class="form-control" id="file" name="file" required>
+                            </div>
+                            
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="num_juries" class="form-label">Number of Juries</label>
+                                    <input type="number" class="form-control" id="num_juries" name="num_juries" min="2" max="10" value="2" required>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="jury_size" class="form-label">Jury Size</label>
+                                    <input type="number" class="form-control" id="jury_size" name="jury_size" min="6" max="18" value="12" required>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <label class="form-label">Rank Demographic Variables (1 = Most Important, 4 = Least Important)</label>
+                                <p class="text-info small">Note: "Final Leaning" is always ranked as the highest priority, followed by Gender.</p>
+                                
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label for="race_rank" class="form-label">Race</label>
+                                        <select class="form-select rank-select" id="race_rank" name="race_rank" required>
+                                            <option value="1">1 (Highest)</option>
+                                            <option value="2">2</option>
+                                            <option value="3">3</option>
+                                            <option value="4">4 (Lowest)</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="age_rank" class="form-label">Age</label>
+                                        <select class="form-select rank-select" id="age_rank" name="age_rank" required>
+                                            <option value="1">1 (Highest)</option>
+                                            <option value="2" selected>2</option>
+                                            <option value="3">3</option>
+                                            <option value="4">4 (Lowest)</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="education_rank" class="form-label">Education</label>
+                                        <select class="form-select rank-select" id="education_rank" name="education_rank" required>
+                                            <option value="1">1 (Highest)</option>
+                                            <option value="2">2</option>
+                                            <option value="3" selected>3</option>
+                                            <option value="4">4 (Lowest)</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="marital_rank" class="form-label">Marital Status</label>
+                                        <select class="form-select rank-select" id="marital_rank" name="marital_rank" required>
+                                            <option value="1">1 (Highest)</option>
+                                            <option value="2">2</option>
+                                            <option value="3">3</option>
+                                            <option value="4" selected>4 (Lowest)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="d-grid gap-2">
+                                <button type="submit" class="btn btn-primary btn-lg">Split Jury</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

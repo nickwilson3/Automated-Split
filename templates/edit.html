@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Jury Assignments</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container-fluid mt-3">
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header text-center">
+                        <h2>Edit Jury Assignments</h2>
+                    </div>
+                    <div class="card-body">
+                        {% with messages = get_flashed_messages() %}
+                            {% if messages %}
+                                {% for message in messages %}
+                                    <div class="alert alert-danger">{{ message }}</div>
+                                {% endfor %}
+                            {% endif %}
+                        {% endwith %}
+                        
+                        <div class="alert alert-info">
+                            <p><strong>Instructions:</strong> You can edit jury assignments by changing the jury number in the dropdown menu for each juror. When you're satisfied with the assignments, click "Confirm Final Split" to generate the final report.</p>
+                        </div>
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label for="filter-jury" class="form-label">Filter by Jury:</label>
+                                <select class="form-select" id="filter-jury">
+                                    <option value="all">Show All Juries</option>
+                                    <option value="Unassigned">Unassigned</option>
+                                    {% for jury in juries %}
+                                    <option value="{{ jury }}">Jury {{ jury_letter(jury) }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="filter-leaning" class="form-label">Filter by Leaning:</label>
+                                <select class="form-select" id="filter-leaning">
+                                    <option value="all">Show All Leanings</option>
+                                    <option value="P">P</option>
+                                    <option value="P+">P+</option>
+                                    <option value="D">D</option>
+                                    <option value="D+">D+</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="table-responsive">
+                            <table class="table table-striped table-bordered" id="assignments-table">
+                                <thead>
+                                    <tr>
+                                        <th>Jury</th>
+                                        <th>Name</th>
+                                        <th>Leaning</th>
+                                        <th>Gender</th>
+                                        <th>Race</th>
+                                        <th>Age</th>
+                                        <th>Education</th>
+                                        <th>Marital Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for juror in assignments %}
+                                    <tr data-jury="{{ juror.jury }}" data-leaning="{{ juror.Final_Leaning }}">
+                                        <td>
+                                            <select class="form-select jury-select" data-juror-index="{{ loop.index0 }}">
+                                                <option value="Unassigned" {% if juror.jury == 'Unassigned' %}selected{% endif %}>Unassigned</option>
+                                                {% for jury in juries %}
+                                                <option value="{{ jury }}" {% if jury == juror.jury %}selected{% endif %}>{{ jury_letter(jury) }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </td>
+                                        <td>{{ juror.Name }}</td>
+                                        <td {% if juror.Final_Leaning in ['P', 'P+'] %}class="text-primary"{% else %}class="text-danger"{% endif %}>
+                                            {{ juror.Final_Leaning }}
+                                        </td>
+                                        <td>{{ juror.Gender }}</td>
+                                        <td>{{ juror.Race }}</td>
+                                        <td>{{ juror.Age }}</td>
+                                        <td>{{ juror.Education }}</td>
+                                        <td>{{ juror.Marital }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <div class="mt-4 d-flex justify-content-between">
+                            <button id="save-changes" class="btn btn-primary">Save Changes</button>
+                            <form action="{{ url_for('generate_report') }}" method="post">
+                                <button type="submit" class="btn btn-primary">Confirm Final Split</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script id="assignments-data" type="application/json">
+        {{ assignments|tojson }}
+    </script>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Edit page script loaded');
+            
+            // Store the assignments data
+            const assignmentsData = JSON.parse(document.getElementById('assignments-data').textContent);
+            
+            // Filter functionality
+            document.getElementById('filter-jury').addEventListener('change', filterTable);
+            document.getElementById('filter-leaning').addEventListener('change', filterTable);
+            
+            function filterTable() {
+                const juryFilter = document.getElementById('filter-jury').value;
+                const leaningFilter = document.getElementById('filter-leaning').value;
+    
+                const juryFilterStr = String(juryFilter);
+                const leaningFilterStr = String(leaningFilter);
+                
+                const rows = document.querySelectorAll('#assignments-table tbody tr');
+                
+                rows.forEach(row => {
+                    const jury = row.getAttribute('data-jury');
+                    const leaning = row.getAttribute('data-leaning');
+                    
+                    const juryMatch = juryFilter === 'all' || jury === juryFilter;
+                    const leaningMatch = leaningFilter === 'all' || leaning === leaningFilter;
+                    
+                    if (juryMatch && leaningMatch) {
+                        row.style.display = '';
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
+            }
+            
+            // Handle jury selection change
+            document.querySelectorAll('.jury-select').forEach(select => {
+                select.addEventListener('change', function() {
+                    const jurorIndex = this.getAttribute('data-juror-index');
+                    const newJury = this.value;
+                    
+                    // Update the row's data attribute for filtering
+                    this.closest('tr').setAttribute('data-jury', newJury);
+                    
+                    // Update the assignments data
+                    assignmentsData[jurorIndex].jury = newJury;
+                });
+            });
+            
+            // Save changes button
+            document.getElementById('save-changes').addEventListener('click', function() {
+                console.log('Save button clicked');
+                
+                // Send data to server
+                fetch('/save_edits', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(assignmentsData)
+                })
+                .then(response => {
+                    console.log('Response received', response);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Data received', data);
+                    if (data.status === 'success') {
+                        alert('Changes saved successfully');
+                    } else {
+                        alert('Error saving changes: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error saving changes. Please try again.');
+                });
+            });
+        });
+    </script>
+</body>
+</html>

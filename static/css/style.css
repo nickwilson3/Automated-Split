@@ -1,0 +1,114 @@
+/* Main styles */
+body {
+    background-color: #f8f9fa;
+    font-family: 'Arial', sans-serif;
+}
+
+.card {
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    border-radius: 8px;
+}
+
+.card-header {
+    background-color: #e8f5e9 !important; /* Very light green background */
+    border-bottom: 1px solid rgba(0,0,0,0.125);
+    padding: 1rem;
+}
+
+/* Table styles */
+.table-responsive {
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+/* Highlight P/D leanings */
+.text-primary {
+    font-weight: bold;
+}
+
+.text-danger {
+    font-weight: bold;
+}
+
+/* Form styling */
+.form-select, .form-control {
+    border-radius: 4px;
+    border: 1px solid #ced4da;
+}
+
+/* Button styling */
+/* Change the main "Split Jury" button to green */
+.btn-primary.btn-lg[type="submit"] {
+    background-color: #198754;
+    border-color: #198754;
+}
+
+.btn-primary.btn-lg[type="submit"]:hover {
+    background-color: #157347;
+    border-color: #146c43;
+}
+
+/* Standard primary buttons */
+.btn-primary {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+}
+
+/* "Save Changes" button blue */
+#save-changes {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+    color: white;
+}
+
+#save-changes:hover {
+    background-color: #0b5ed7;
+    border-color: #0a58ca;
+}
+
+/* Keep "Confirm Final Split" button green */
+.btn-primary[type="submit"] {
+    background-color: #198754;
+    border-color: #198754;
+}
+
+.btn-primary[type="submit"]:hover {
+    background-color: #157347;
+    border-color: #146c43;
+}
+
+.btn-success {
+    background-color: #198754;
+    border-color: #198754;
+}
+
+/* Filter section */
+.filter-section {
+    background-color: #f8f9fa;
+    padding: 15px;
+    border-radius: 5px;
+    margin-bottom: 20px;
+}
+
+/* Highlight unassigned jurors */
+tr[data-jury="Unassigned"] {
+    background-color: #f8f9fa !important;
+}
+
+/* Style for the jury dropdown */
+.jury-select option[value="Unassigned"] {
+    font-style: italic;
+    color: #6c757d;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .container {
+        max-width: 100%;
+        padding: 0 10px;
+    }
+    
+    .table-responsive {
+        max-height: 50vh;
+    }
+}
