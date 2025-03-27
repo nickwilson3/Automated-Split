@@ -1,4 +1,0 @@
-# Ignore directories that aren't needed for deployment
-__pycache__/
-results/
-uploads/
