@@ -1,3 +1,4 @@
+
 /* Main styles */
 body {
     background-color: #f8f9fa;
@@ -113,45 +114,54 @@ tr[data-jury="Unassigned"] {
     margin-bottom: 20px;
 }
 
-.jury-card {
-    transition: all 0.3s ease;
-    border: 1px solid #dee2e6;
-    border-radius: 5px;
-    padding: 10px;
-    margin-bottom: 10px;
+#scoreboard-table {
+    margin-bottom: 0;
+    width: 100%;
+    white-space: nowrap;
 }
 
-.jury-card:hover {
-    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+#scoreboard-table th {
+    background-color: #f8f9fa;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    font-size: 0.85rem;
+    padding: 0.5rem;
+    text-align: center;
+    vertical-align: middle;
+    white-space: nowrap;
 }
 
-.jury-card-header {
+#scoreboard-table td {
+    font-size: 0.85rem;
+    padding: 0.5rem;
+    text-align: center;
+    vertical-align: middle;
+}
+
+/* Make the first three columns more prominent */
+#scoreboard-table th:nth-child(-n+3),
+#scoreboard-table td:nth-child(-n+3) {
     font-weight: bold;
-    font-size: 1.1em;
-    margin-bottom: 8px;
-    border-bottom: 1px solid #dee2e6;
-    padding-bottom: 5px;
+    white-space: nowrap;
+    background-color: rgba(0, 0, 0, 0.03);
 }
 
-.pd-balanced {
-    background-color: #d1e7dd;
-    border-left: 4px solid #198754;
+.table-success td {
+    background-color: rgba(209, 231, 221, 0.7) !important;  /* Lighter green */
 }
 
-.pd-unbalanced {
-    background-color: #f8d7da;
-    border-left: 4px solid #dc3545;
+.table-danger td {
+    background-color: rgba(248, 215, 218, 0.7) !important;  /* Lighter red */
 }
 
-.stats-row {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 5px;
-    font-size: 0.9em;
+.table-light td {
+    background-color: rgba(248, 249, 250, 0.7) !important;  /* Very light gray */
 }
 
-.stats-label {
-    font-weight: bold;
+/* Warning symbol styles */
+#scoreboard-table td span[title] {
+    cursor: help;
 }
 
 /* Responsive adjustments */
@@ -169,7 +179,57 @@ tr[data-jury="Unassigned"] {
         padding: 10px 5px;
     }
     
-    .jury-card {
-        padding: 8px;
+    #scoreboard-table td,
+    #scoreboard-table th {
+        font-size: 0.7rem;
+        padding: 0.3rem;
     }
+}
+
+/* Warning Modal Styles */
+.modal-header.bg-warning {
+    background-color: #fff3cd !important;
+    color: #856404;
+    border-bottom: 1px solid #ffeeba;
+}
+
+.modal-title {
+    font-weight: bold;
+}
+
+#warning-message ul {
+    margin-top: 10px;
+    margin-bottom: 10px;
+    padding-left: 20px;
+}
+
+#warning-message li {
+    margin-bottom: 5px;
+    font-weight: 500;
+}
+
+.modal-footer .btn-warning {
+    background-color: #ffc107;
+    border-color: #ffc107;
+    color: #212529;
+}
+
+.modal-footer .btn-warning:hover {
+    background-color: #e0a800;
+    border-color: #d39e00;
+}
+
+.modal-footer .btn-secondary {
+    background-color: #6c757d;
+    border-color: #6c757d;
+}
+
+.modal-footer .btn-secondary:hover {
+    background-color: #5a6268;
+    border-color: #545b62;
+}
+
+/* Override the standard Bootstrap modal backdrop for emphasis */
+.modal-backdrop.show {
+    opacity: 0.7;
 }
