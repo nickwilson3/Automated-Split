@@ -1,12 +1,51 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Edit Jury Assignments</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.0/dist/css/bootstrap.min.css">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-</head>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Edit Jury Assignments</title>
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.0/dist/css/bootstrap.min.css">
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+        <style>
+            .scoreboard {
+                position: sticky;
+                top: 0;
+                z-index: 1000;
+                background-color: white;
+                border-bottom: 2px solid #dee2e6;
+                padding: 10px 0;
+                margin-bottom: 15px;
+                box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            }
+            .jury-card {
+                border: 1px solid #dee2e6;
+                border-radius: 5px;
+                padding: 10px;
+                margin-bottom: 10px;
+                background-color: #f8f9fa;
+            }
+            .jury-card-header {
+                font-weight: bold;
+                border-bottom: 1px solid #dee2e6;
+                padding-bottom: 5px;
+                margin-bottom: 5px;
+            }
+            .pd-balanced {
+                background-color: #d1e7dd;
+            }
+            .pd-unbalanced {
+                background-color: #f8d7da;
+            }
+            .stats-row {
+                display: flex;
+                justify-content: space-between;
+                margin-bottom: 3px;
+            }
+            .stats-label {
+                font-weight: bold;
+            }
+        </style>
+    </head>
 <body>
     <div class="container-fluid mt-3">
         <div class="row">
@@ -27,7 +66,12 @@
                         <div class="alert alert-info">
                             <p><strong>Instructions:</strong> You can edit jury assignments by changing the jury number in the dropdown menu for each juror. When you're satisfied with the assignments, click "Confirm Final Split" to generate the final report.</p>
                         </div>
-                        
+                        <div class="scoreboard">
+                            <h3 class="mb-3">Jury Balance Scoreboard</h3>
+                            <div class="row" id="scoreboard-container">
+                                <!-- Jury cards will be generated dynamically by JavaScript -->
+                            </div>
+                        </div>
                         <div class="row mb-3">
                             <div class="col-md-4">
                                 <label for="filter-jury" class="form-label">Filter by Jury:</label>
@@ -115,6 +159,9 @@
             
             // Store the assignments data
             const assignmentsData = JSON.parse(document.getElementById('assignments-data').textContent);
+
+            //Initialize the scoreboard
+            updateScoreboard();
             
             // Filter functionality
             document.getElementById('filter-jury').addEventListener('change', filterTable);
@@ -142,6 +189,144 @@
                         row.style.display = 'none';
                     }
                 });
+            }
+
+            // Function to update the scoreboard
+            function updateScoreboard() {
+                // Get unique juries
+                const juries = [...new Set(assignmentsData.map(juror => juror.jury))].filter(jury => jury !== 'Unassigned').sort();
+                
+                // Calculate stats for each jury
+                const juryStats = {};
+                
+                // Initialize stats for each jury
+                juries.forEach(jury => {
+                    juryStats[jury] = {
+                        total: 0,
+                        leaning: { 'P': 0, 'P+': 0, 'D': 0, 'D+': 0 },
+                        gender: {},
+                        race: {},
+                        ageGroup: {},
+                        education: {},
+                        marital: {}
+                    };
+                });
+                
+                // Add "Unassigned" category if there are unassigned jurors
+                if (assignmentsData.some(juror => juror.jury === 'Unassigned')) {
+                    juryStats['Unassigned'] = {
+                        total: 0,
+                        leaning: { 'P': 0, 'P+': 0, 'D': 0, 'D+': 0 },
+                        gender: {},
+                        race: {},
+                        ageGroup: {},
+                        education: {},
+                        marital: {}
+                    };
+                }
+                
+                // Count demographics for each jury
+                assignmentsData.forEach(juror => {
+                    const jury = juror.jury;
+                    
+                    if (jury in juryStats) {
+                        juryStats[jury].total++;
+                        
+                        // Count leaning
+                        if (juror.Final_Leaning) {
+                            juryStats[jury].leaning[juror.Final_Leaning] = (juryStats[jury].leaning[juror.Final_Leaning] || 0) + 1;
+                        }
+                        
+                        // Count gender
+                        if (juror.Gender) {
+                            juryStats[jury].gender[juror.Gender] = (juryStats[jury].gender[juror.Gender] || 0) + 1;
+                        }
+                        
+                        // Count race
+                        if (juror.Race) {
+                            juryStats[jury].race[juror.Race] = (juryStats[jury].race[juror.Race] || 0) + 1;
+                        }
+                        
+                        // Count age groups
+                        if (juror.AgeGroup) {
+                            juryStats[jury].ageGroup[juror.AgeGroup] = (juryStats[jury].ageGroup[juror.AgeGroup] || 0) + 1;
+                        }
+                        
+                        // Count education
+                        if (juror.Education) {
+                            juryStats[jury].education[juror.Education] = (juryStats[jury].education[juror.Education] || 0) + 1;
+                        }
+                        
+                        // Count marital status
+                        if (juror.Marital) {
+                            juryStats[jury].marital[juror.Marital] = (juryStats[jury].marital[juror.Marital] || 0) + 1;
+                        }
+                    }
+                });
+                
+                // Generate HTML for scoreboard
+                const scoreboardContainer = document.getElementById('scoreboard-container');
+                scoreboardContainer.innerHTML = '';
+                
+                // Calculate columns based on number of juries
+                const colSize = Math.max(3, Math.floor(12 / (Object.keys(juryStats).length)));
+                
+                for (const [jury, stats] of Object.entries(juryStats)) {
+                    // Don't show unassigned in the main scoreboard if it's empty
+                    if (jury === 'Unassigned' && stats.total === 0) continue;
+                    
+                    // Convert numeric jury to letter
+                    let juryLabel;
+                    if (jury === 'Unassigned') {
+                        juryLabel = 'Unassigned';
+                    } else if (!isNaN(jury)) {
+                        juryLabel = String.fromCharCode(64 + parseInt(jury)); // Convert 1 to A, 2 to B, etc.
+                    } else {
+                        juryLabel = jury;
+                    }
+                    
+                    // Calculate P/D balance
+                    const pTotal = (stats.leaning['P'] || 0) + (stats.leaning['P+'] || 0);
+                    const dTotal = (stats.leaning['D'] || 0) + (stats.leaning['D+'] || 0);
+                    const balanceClass = Math.abs(pTotal - dTotal) <= 1 ? 'pd-balanced' : 'pd-unbalanced';
+                    
+                    const juryCard = document.createElement('div');
+                    juryCard.className = `col-md-${colSize} mb-3`;
+                    juryCard.innerHTML = `
+                        <div class="jury-card ${balanceClass}">
+                            <div class="jury-card-header">Jury ${juryLabel} (${stats.total})</div>
+                            <div class="stats-row">
+                                <span class="stats-label">P/D Balance:</span>
+                                <span>${pTotal}P / ${dTotal}D</span>
+                            </div>
+                            <div class="stats-row">
+                                <span class="stats-label">Gender:</span>
+                                <span>${formatDemographic(stats.gender)}</span>
+                            </div>
+                            <div class="stats-row">
+                                <span class="stats-label">Race:</span>
+                                <span>${formatDemographic(stats.race, true)}</span>
+                            </div>
+                        </div>
+                    `;
+                    
+                    scoreboardContainer.appendChild(juryCard);
+                }
+            }
+            
+            // Helper function to format demographic counts
+            function formatDemographic(counts, abbreviated = false) {
+                if (!counts || Object.keys(counts).length === 0) return 'N/A';
+                
+                return Object.entries(counts)
+                    .map(([key, value]) => {
+                        // Abbreviate if requested and the key is longer than 6 characters
+                        const displayKey = abbreviated && key.length > 6 ? 
+                            key.substring(0, 5) + '.' : 
+                            key;
+                        return `${value} ${displayKey}`;
+                    })
+                    .join(', ');
             }
             
             // Handle jury selection change

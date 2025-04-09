@@ -13,20 +13,15 @@ document.addEventListener('DOMContentLoaded', function() {
             // Check if any other select has the same value
             rankSelects.forEach(otherSelect => {
                 if (otherSelect.id !== currentSelectId && otherSelect.value === selectedValue) {
-                    // Find a value that's not used
-                    let newValue = '1';
-                    const usedValues = Array.from(rankSelects).map(s => s.value);
+                    // Find previous value of the current select
+                    const previousValues = {};
+                    rankSelects.forEach(s => {
+                        previousValues[s.id] = s.value;
+                    });
                     
-                    for (let i = 1; i <= 4; i++) {
-                        const val = i.toString();
-                        if (!usedValues.includes(val) || val === selectedValue) {
-                            newValue = val;
-                            break;
-                        }
-                    }
-                    
-                    // Set the other select to the new value
-                    otherSelect.value = newValue;
+                    // Swap values between the selects
+                    const otherPreviousValue = previousValues[otherSelect.id];
+                    otherSelect.value = otherPreviousValue;
                 }
             });
         });

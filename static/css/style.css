@@ -101,6 +101,59 @@ tr[data-jury="Unassigned"] {
     color: #6c757d;
 }
 
+/* Scoreboard styles */
+.scoreboard {
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    background-color: white;
+    padding: 15px;
+    border-radius: 5px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+}
+
+.jury-card {
+    transition: all 0.3s ease;
+    border: 1px solid #dee2e6;
+    border-radius: 5px;
+    padding: 10px;
+    margin-bottom: 10px;
+}
+
+.jury-card:hover {
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+}
+
+.jury-card-header {
+    font-weight: bold;
+    font-size: 1.1em;
+    margin-bottom: 8px;
+    border-bottom: 1px solid #dee2e6;
+    padding-bottom: 5px;
+}
+
+.pd-balanced {
+    background-color: #d1e7dd;
+    border-left: 4px solid #198754;
+}
+
+.pd-unbalanced {
+    background-color: #f8d7da;
+    border-left: 4px solid #dc3545;
+}
+
+.stats-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 5px;
+    font-size: 0.9em;
+}
+
+.stats-label {
+    font-weight: bold;
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
     .container {
@@ -110,5 +163,13 @@ tr[data-jury="Unassigned"] {
     
     .table-responsive {
         max-height: 50vh;
+    }
+    
+    .scoreboard {
+        padding: 10px 5px;
+    }
+    
+    .jury-card {
+        padding: 8px;
     }
 }
