@@ -834,7 +834,7 @@ def create_html_report(results, output_path=None, include_visualizations=True):
                 juror_df = pd.DataFrame(analysis['jurors'])
                 
                 # Select relevant columns, ensure Education is included
-                display_columns = ['Name', 'Final_Leaning', 'Gender', 'Race', 'Age', 'AgeGroup', 
+                display_columns = ['Name', '#', 'Final_Leaning', 'Gender', 'Race', 'Age', 'AgeGroup', 
                                   'Education', 'Marital']
                 display_columns = [col for col in display_columns if col in juror_df.columns]
                 

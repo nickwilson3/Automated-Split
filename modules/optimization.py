@@ -493,7 +493,7 @@ def format_results_for_output(assignment_results, data_dict):
     detailed_assignments = jury_assignments.sort_values(['jury', 'Name'])
     
     # Select relevant columns
-    output_columns = ['jury', 'Name', 'Final_Leaning', 'Gender', 'Race', 'Age', 'AgeGroup', 'Education', 'Marital']
+    output_columns = ['jury', 'Name', '#', 'Final_Leaning', 'Gender', 'Race', 'Age', 'AgeGroup', 'Education', 'Marital']
     # Make sure we only include columns that actually exist
     output_columns = [col for col in output_columns if col in detailed_assignments.columns]
     

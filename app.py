@@ -199,7 +199,8 @@ def edit_assignments():
     
     return render_template('edit.html', 
                           assignments=assignments.to_dict('records'), 
-                          juries=juries)
+                          juries=juries,
+                          jury_size=session.get('jury_size', 12))
 
 @app.route('/save_edits', methods=['POST'])
 def save_edits():

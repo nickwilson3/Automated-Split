@@ -66,10 +66,6 @@
                                     <option value="D+">D+</option>
                                 </select>
                             </div>
-                            <div class="col-md-4">
-                                <label for="jury-size" class="form-label">Target Jury Size:</label>
-                                <input type="number" class="form-control" id="jury-size" value="12" min="1" max="24">
-                            </div>
                         </div>
                         
                         <div class="table-responsive">
@@ -149,8 +145,16 @@
     <script id="assignments-data" type="application/json">
         {{ assignments|tojson }}
     </script>
+    <script type="text/javascript">
+        // Target jury size from backend
+        const targetJurySize = {{ jury_size }};
+    </script>
     
     <script>
+        // Function to check for jury assignment issues
+        // This JavaScript should replace the existing script section in edit.html
+        // after the assignments-data script tag (keep that tag)
+
         document.addEventListener('DOMContentLoaded', function() {
             console.log('Edit page script loaded');
             
@@ -163,20 +167,14 @@
             // Track if changes have been saved
             let changesSaved = true;
             
-            // Initialize the target jury size
-            let targetJurySize = parseInt(document.getElementById('jury-size').value) || 12;
+            // Use the target jury size from the backend
+            // const targetJurySize = {{ jury_size }}; // This should be defined earlier in a separate script tag
             
             // Initialize the warning modal
             const warningModal = new bootstrap.Modal(document.getElementById('warningModal'));
             
             // Initialize the scoreboard
             updateScoreboard();
-            
-            // Update scoreboard when jury size changes
-            document.getElementById('jury-size').addEventListener('change', function() {
-                targetJurySize = parseInt(this.value) || 12;
-                updateScoreboard();
-            });
             
             // Filter functionality
             document.getElementById('filter-jury').addEventListener('change', filterTable);
@@ -185,7 +183,7 @@
             function filterTable() {
                 const juryFilter = document.getElementById('filter-jury').value;
                 const leaningFilter = document.getElementById('filter-leaning').value;
-    
+
                 const juryFilterStr = String(juryFilter);
                 const leaningFilterStr = String(leaningFilter);
                 
@@ -204,6 +202,18 @@
                         row.style.display = 'none';
                     }
                 });
+            }
+            
+            // Calculate optimal distribution using maximin approach
+            function calculateOptimalDistribution(totalCount, numGroups) {
+                // Base distribution - start by dividing evenly
+                const baseValue = Math.floor(totalCount / numGroups);
+                
+                // Calculate how many groups need to get an extra resource
+                const remainder = totalCount % numGroups;
+                
+                // Create the distribution: some groups get (base_value + 1), the rest get base_value
+                return Array(remainder).fill(baseValue + 1).concat(Array(numGroups - remainder).fill(baseValue));
             }
             
             // Function to determine if a jury has optimal P/D balance
@@ -226,25 +236,123 @@
                 }
             }
             
-            // Function to check for jury assignment issues
             function checkJuryIssues() {
                 const issues = [];
                 const juryStats = {};
                 
                 // Get unique juries (excluding Unassigned)
                 const juries = [...new Set(assignmentsData.map(juror => juror.jury))]
-                    .filter(jury => jury !== 'Unassigned');
+                    .filter(jury => jury !== 'Unassigned')
+                    .sort((a, b) => {
+                        // Convert numeric juries to letters for comparison
+                        const juryA = isNaN(a) ? a : String.fromCharCode(64 + parseInt(a));
+                        const juryB = isNaN(b) ? b : String.fromCharCode(64 + parseInt(b));
+                        return juryA.localeCompare(juryB);
+                    });
                 
-                // Calculate stats for each jury
+                // Count all jurors by leaning, including unassigned
+                let totalP = 0;
+                let totalD = 0;
+                
+                // First gather stats for all jurors including unassigned
+                const allJurors = assignmentsData.filter(juror => juror.Final_Leaning);
+                totalP = allJurors.filter(j => ['P', 'P+'].includes(j.Final_Leaning)).length;
+                totalD = allJurors.filter(j => ['D', 'D+'].includes(j.Final_Leaning)).length;
+                
+                // Then gather stats for each jury
                 juries.forEach(jury => {
                     const jurors = assignmentsData.filter(juror => juror.jury === jury);
-                    const total = jurors.length;
-                    
-                    // Count P/D leanings
                     const pCount = jurors.filter(j => ['P', 'P+'].includes(j.Final_Leaning)).length;
                     const dCount = jurors.filter(j => ['D', 'D+'].includes(j.Final_Leaning)).length;
                     
-                    // Convert numeric jury to letter
+                    // Store counts for each jury
+                    juryStats[jury] = { 
+                        total: jurors.length,
+                        pCount: pCount,
+                        dCount: dCount
+                    };
+                });
+                
+                // Calculate optimal targets based on total available jurors
+                const calculateOptimalTargets = () => {
+                    // Each jury should ideally have exactly targetJurySize jurors
+                    const numJuries = juries.length;
+                    
+                    // Case where we can satisfy all juries with perfect size
+                    if (totalP + totalD >= numJuries * targetJurySize) {
+                        // We need to distribute D jurors optimally while ensuring each jury has exactly targetJurySize jurors
+                        // Calculate optimal D distribution
+                        const optimalDDistribution = calculateOptimalDistribution(Math.min(totalD, numJuries * targetJurySize), numJuries);
+                        
+                        // For each jury, P count should be (targetJurySize - D count)
+                        const optimalPDistribution = optimalDDistribution.map(d => targetJurySize - d);
+                        
+                        return {
+                            optimalPDistribution,
+                            optimalDDistribution
+                        };
+                    } 
+                    // Case where we don't have enough jurors to fill all juries
+                    else {
+                        // In this case, we should distribute all available jurors
+                        // First, figure out how many complete juries we can make
+                        const completeJuries = Math.floor((totalP + totalD) / targetJurySize);
+                        
+                        // If we can't even make one complete jury, just distribute what we have
+                        if (completeJuries < 1) {
+                            const optimalDDistribution = calculateOptimalDistribution(totalD, numJuries);
+                            const optimalPDistribution = juries.map((_, i) => {
+                                // Ensure we don't exceed targetJurySize
+                                return Math.min(targetJurySize - (optimalDDistribution[i] || 0), 
+                                    Math.ceil(totalP / numJuries));
+                            });
+                            
+                            return {
+                                optimalPDistribution,
+                                optimalDDistribution
+                            };
+                        }
+                        
+                        // If we can make some complete juries but not all
+                        // First, distribute D optimally among complete juries
+                        const dForCompleteJuries = Math.min(totalD, completeJuries * targetJurySize);
+                        const optimalDForComplete = calculateOptimalDistribution(dForCompleteJuries, completeJuries);
+                        
+                        // Then calculate P for complete juries
+                        const optimalPForComplete = optimalDForComplete.map(d => targetJurySize - d);
+                        
+                        // Now handle remaining juries
+                        const remainingD = totalD - dForCompleteJuries;
+                        const remainingP = totalP - optimalPForComplete.reduce((sum, p) => sum + p, 0);
+                        
+                        // Distribute remaining jurors
+                        const remainingJuries = numJuries - completeJuries;
+                        const optimalDForRemaining = remainingJuries > 0 
+                            ? calculateOptimalDistribution(remainingD, remainingJuries) 
+                            : [];
+                            
+                        const optimalPForRemaining = remainingJuries > 0 
+                            ? calculateOptimalDistribution(remainingP, remainingJuries)
+                            : [];
+                        
+                        // Combine the distributions
+                        const optimalDDistribution = [...optimalDForComplete, ...optimalDForRemaining];
+                        const optimalPDistribution = [...optimalPForComplete, ...optimalPForRemaining];
+                        
+                        return {
+                            optimalPDistribution,
+                            optimalDDistribution
+                        };
+                    }
+                };
+                
+                const { optimalPDistribution, optimalDDistribution } = calculateOptimalTargets();
+                
+                // Second pass: check each jury against its targets
+                juries.forEach((jury, index) => {
+                    const stats = juryStats[jury];
+                    
+                    // Convert numeric jury to letter for display
                     let juryLabel;
                     if (!isNaN(jury)) {
                         juryLabel = String.fromCharCode(64 + parseInt(jury)); // Convert 1 to A, 2 to B, etc.
@@ -253,28 +361,49 @@
                     }
                     
                     // Check jury size
-                    if (total !== targetJurySize) {
-                        issues.push(`Jury ${juryLabel} has ${total} jurors (target is ${targetJurySize}).`);
+                    if (stats.total !== targetJurySize) {
+                        issues.push(`Jury ${juryLabel} has ${stats.total} jurors (target is ${targetJurySize}).`);
                     }
                     
-                    // Check P/D balance
-                    if (!hasOptimalPDBalance(pCount, dCount, targetJurySize)) {
-                        issues.push(`Jury ${juryLabel} has a P/D balance of ${pCount}:${dCount}, which is not optimal.`);
+                    // Use targets for this jury from the optimal distribution
+                    // But only if we have enough index values in our distributions
+                    if (index < optimalPDistribution.length && index < optimalDDistribution.length) {
+                        const targetP = optimalPDistribution[index];
+                        const targetD = optimalDDistribution[index];
+                        
+                        // Store targets for reference
+                        juryStats[jury].targetP = targetP;
+                        juryStats[jury].targetD = targetD;
+                        
+                        // Check P/D balance against optimal targets only if total is correct
+                        if (stats.pCount !== targetP || stats.dCount !== targetD) {
+                            issues.push(`Jury ${juryLabel} has a P/D balance of ${stats.pCount}:${stats.dCount}, but the optimal balance is ${targetP}:${targetD}.`);
+                        }
                     }
-                    
-                    juryStats[jury] = { total, pCount, dCount };
                 });
                 
-                // Note: We don't issue warnings for unassigned jurors anymore
-                // This information can still be useful for tracking
-                const unassignedCount = assignmentsData.filter(juror => juror.jury === 'Unassigned').length;
-                juryStats['unassigned'] = { count: unassignedCount };
+                // Track unassigned jurors
+                const unassignedJurors = assignmentsData.filter(juror => juror.jury === 'Unassigned');
+                const unassignedCount = unassignedJurors.length;
+                const unassignedP = unassignedJurors.filter(j => ['P', 'P+'].includes(j.Final_Leaning)).length;
+                const unassignedD = unassignedJurors.filter(j => ['D', 'D+'].includes(j.Final_Leaning)).length;
                 
+                juryStats['unassigned'] = { 
+                    count: unassignedCount,
+                    pCount: unassignedP,
+                    dCount: unassignedD
+                };
+                
+                // Add information about the overall optimal distribution to the response
                 return {
                     hasIssues: issues.length > 0,
                     issues: issues,
                     juryStats: juryStats,
-                    unassignedCount: unassignedCount  // Still track this but don't make it an issue
+                    unassignedCount: unassignedCount,
+                    optimalPDistribution: optimalPDistribution,
+                    optimalDDistribution: optimalDDistribution,
+                    totalP: totalP,
+                    totalD: totalD
                 };
             }
             
@@ -436,6 +565,9 @@
                 const scoreboardBody = document.getElementById('scoreboard-body');
                 scoreboardBody.innerHTML = '';
                 
+                // First, check jury assignment issues to get optimal distribution
+                const juryIssues = checkJuryIssues();
+                
                 for (const jury of juries) {
                     const stats = juryStats[jury];
                     
@@ -445,7 +577,21 @@
                     
                     // Determine if jury is balanced (size and P/D)
                     const hasCorrectSize = jury === 'Unassigned' || stats.total === targetJurySize;
-                    const hasGoodBalance = jury === 'Unassigned' || hasOptimalPDBalance(pTotal, dTotal, targetJurySize);
+                    
+                    // If this is an actual jury (not unassigned), check against the optimal distribution
+                    let hasGoodBalance = true;
+                    let optimalP = null;
+                    let optimalD = null;
+                    
+                    if (jury !== 'Unassigned' && juryIssues.juryStats[jury]) {
+                        optimalP = juryIssues.juryStats[jury].targetP;
+                        optimalD = juryIssues.juryStats[jury].targetD;
+                        hasGoodBalance = (pTotal === optimalP && dTotal === optimalD);
+                    } else if (jury !== 'Unassigned') {
+                        // Fallback to original balance check if jury isn't in the stats
+                        hasGoodBalance = hasOptimalPDBalance(pTotal, dTotal, targetJurySize);
+                    }
+                    
                     const isOptimal = hasCorrectSize && hasGoodBalance;
                     
                     // Convert numeric jury to letter
@@ -471,7 +617,8 @@
                     let rowHtml = `
                         <td><strong>${juryLabel}</strong></td>
                         <td>${stats.total}${!hasCorrectSize && jury !== 'Unassigned' ? ` <span title="Target: ${targetJurySize}">⚠️</span>` : ''}</td>
-                        <td>${pTotal}P / ${dTotal}D ${!hasGoodBalance && jury !== 'Unassigned' ? '⚠️' : ''}</td>
+                        <td>${pTotal}P / ${dTotal}D${optimalP !== null && !hasGoodBalance && jury !== 'Unassigned' ? 
+                            ` <span title="Optimal: ${optimalP}P / ${optimalD}D">⚠️</span>` : ''}</td>
                     `;
                     
                     // Add gender columns
