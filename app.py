@@ -97,10 +97,11 @@ def upload_file():
         num_juries = int(request.form.get('num_juries', 2))
         jury_size = int(request.form.get('jury_size', 12))
         
-        # Get demographic variable rankings
+        # Get demographic variable rankings for weighted optimization
+        # Note: P/D Leaning and Gender will use hard constraints, others use weighted
         rankings = {
-            'Final_Leaning': 5.0,  # Always highest priority - using underscore version
-            'Gender': 4.5,
+            'Final_Leaning': 5.0,  # Hard constraint (highest priority)
+            'Gender': 5.0,         # Hard constraint (second priority)
             'Race': float(5 - int(request.form.get('race_rank', 1))),
             'AgeGroup': float(5 - int(request.form.get('age_rank', 2))),
             'Education': float(5 - int(request.form.get('education_rank', 3))),
@@ -114,8 +115,10 @@ def upload_file():
         
         # Process data and run optimization
         try:
-            print("Starting data processing...")
-            # Process the data
+            print("Starting hierarchical jury optimization...")
+            print(f"Rankings for weighted optimization: {rankings}")
+            
+            # Process the data (now includes enhanced balance checking)
             data_dict = process_juror_data(file_path, num_juries, jury_size)
             
             print("Data processed successfully, now converting column names...")
@@ -126,10 +129,30 @@ def upload_file():
                 data_dict['original_data'].columns = [col.replace(' ', '_') for col in data_dict['original_data'].columns]
                 print("Updated column names:", data_dict['original_data'].columns.tolist())
             
-            print("Running optimization with rankings:", rankings)
-            # Run optimization
+            # Print balance info from enhanced data processing
+            balance_info = data_dict.get('balance_info', {})
+            print(f"Balance analysis:")
+            print(f"  - P/D balance achievable: P={balance_info.get('has_enough_p', 'Unknown')}, D={balance_info.get('has_enough_d', 'Unknown')}")
+            print(f"  - Gender balance achievable: {balance_info.get('gender_balance_possible', 'Unknown')}")
+            print(f"  - Will use hard constraints for P/D: {bool(balance_info.get('optimal_p_distribution') or balance_info.get('optimal_d_distribution'))}")
+            print(f"  - Will use hard constraints for Gender: {bool(balance_info.get('optimal_male_distribution') or balance_info.get('optimal_female_distribution'))}")
+            
+            print("Running hierarchical optimization...")
+            # Run hierarchical optimization
             results = optimize_jury_assignment(data_dict, rankings)
-            print("Optimization completed successfully.")
+            print("Hierarchical optimization completed successfully.")
+            
+            # Print optimization results summary
+            if 'solution_quality' in results:
+                solution_quality = results['solution_quality']
+                print(f"Optimization status: {solution_quality['status']}")
+                if 'hierarchical_balance' in solution_quality:
+                    hierarchical = solution_quality['hierarchical_balance']
+                    print(f"P/D balance achieved: {hierarchical.get('leaning', 'Unknown')}")
+                    print(f"Gender balance achieved: {hierarchical.get('gender', 'Unknown')}")
+                
+                constraint_types = solution_quality.get('constraint_types_used', {})
+                print(f"Used hard constraints: P/D={constraint_types.get('leaning', False)}, Gender={constraint_types.get('gender', False)}")
             
             print("Saving results to JSON...")
             # Save results to a JSON file
@@ -141,19 +164,7 @@ def upload_file():
             if 'detailed_assignments' in results:
                 results['detailed_assignments'] = results['detailed_assignments'].to_dict('records')
             
-            # Custom function to handle numpy types when serializing to JSON
-            def json_numpy_serializer(obj):
-                import numpy as np
-                if isinstance(obj, np.integer):
-                    return int(obj)
-                elif isinstance(obj, np.floating):
-                    return float(obj)
-                elif isinstance(obj, np.ndarray):
-                    return obj.tolist()
-                else:
-                    raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
-            
-            # Use the custom serializer
+            # Use the custom serializer for numpy types
             with open(results_file, 'w') as f:
                 json.dump(results, f, default=json_numpy_serializer)
             
@@ -362,20 +373,33 @@ def generate_report():
                 else x
             )
 
-            # Use the fixed assignments
-            updated_results = format_results_for_output({
+            # Use the fixed assignments - create a mock assignment_results structure
+            mock_assignment_results = {
                 'assignments': jury_assignments_fixed,
                 'jury_analysis': {k: v for k, v in jury_analysis.items() if k != 'Unassigned'},
-                'deviations': results['solution_quality']['deviations'],
+                'deviations': results.get('solution_quality', {}).get('deviations', {}),
                 'solution_status': 'Manually Edited',
-                'objective_value': results['solution_quality']['objective_value']
-            }, data_dict)
+                'objective_value': results.get('solution_quality', {}).get('objective_value', 0),
+                'balance_achieved': results.get('solution_quality', {}).get('hierarchical_balance', {}),
+                'used_hard_constraints': results.get('solution_quality', {}).get('constraint_types_used', {})
+            }
+            
+            # Use the fixed assignments
+            updated_results = format_results_for_output(mock_assignment_results, data_dict)
             
             # Update the summary in results
             if 'summary' in updated_results:
                 results['summary'] = updated_results['summary']
+                
+            # Preserve hierarchical balance information
+            if 'solution_quality' in updated_results:
+                # Merge the hierarchical balance info back in
+                if 'solution_quality' in results:
+                    updated_results['solution_quality']['hierarchical_balance'] = results['solution_quality'].get('hierarchical_balance', {})
+                    updated_results['solution_quality']['constraint_types_used'] = results['solution_quality'].get('constraint_types_used', {})
+                results['solution_quality'] = updated_results['solution_quality']
     
-    # Create HTML report with embedded visualizations
+    # Create HTML report with embedded visualizations and hierarchical balance info
     html_report_path = os.path.join(session_folder, 'jury_report.html')
     create_html_report(results, html_report_path, include_visualizations=True)
     

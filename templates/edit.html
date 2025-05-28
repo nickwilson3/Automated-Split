@@ -275,76 +275,100 @@
                 
                 // Calculate optimal targets based on total available jurors
                 const calculateOptimalTargets = () => {
-                    // Each jury should ideally have exactly targetJurySize jurors
-                    const numJuries = juries.length;
+                // Each jury should ideally have exactly targetJurySize jurors
+                const numJuries = juries.length;
+                
+                // Check if we have enough jurors total to fill all juries
+                if (totalP + totalD < numJuries * targetJurySize) {
+                    // Not enough total jurors - distribute what we have
+                    // Use maximin for both P and D
+                    const optimalPDistribution = calculateOptimalDistribution(totalP, numJuries);
+                    const optimalDDistribution = calculateOptimalDistribution(totalD, numJuries);
                     
-                    // Case where we can satisfy all juries with perfect size
-                    if (totalP + totalD >= numJuries * targetJurySize) {
-                        // We need to distribute D jurors optimally while ensuring each jury has exactly targetJurySize jurors
-                        // Calculate optimal D distribution
-                        const optimalDDistribution = calculateOptimalDistribution(Math.min(totalD, numJuries * targetJurySize), numJuries);
-                        
-                        // For each jury, P count should be (targetJurySize - D count)
-                        const optimalPDistribution = optimalDDistribution.map(d => targetJurySize - d);
-                        
-                        return {
-                            optimalPDistribution,
-                            optimalDDistribution
-                        };
-                    } 
-                    // Case where we don't have enough jurors to fill all juries
-                    else {
-                        // In this case, we should distribute all available jurors
-                        // First, figure out how many complete juries we can make
-                        const completeJuries = Math.floor((totalP + totalD) / targetJurySize);
-                        
-                        // If we can't even make one complete jury, just distribute what we have
-                        if (completeJuries < 1) {
-                            const optimalDDistribution = calculateOptimalDistribution(totalD, numJuries);
-                            const optimalPDistribution = juries.map((_, i) => {
-                                // Ensure we don't exceed targetJurySize
-                                return Math.min(targetJurySize - (optimalDDistribution[i] || 0), 
-                                    Math.ceil(totalP / numJuries));
-                            });
-                            
-                            return {
-                                optimalPDistribution,
-                                optimalDDistribution
-                            };
+                    return {
+                        optimalPDistribution,
+                        optimalDDistribution
+                    };
+                }
+                
+                // We have enough total jurors to fill all juries
+                // Now check P/D balance constraints
+                
+                // Calculate ideal targets if we had perfect balance
+                const idealPPerJury = Math.floor(targetJurySize / 2);
+                const idealDPerJury = targetJurySize - idealPPerJury; // Handles odd jury sizes
+                
+                const totalPNeeded = idealPPerJury * numJuries;
+                const totalDNeeded = idealDPerJury * numJuries;
+                
+                // Check if we have enough of each leaning for ideal distribution
+                if (totalP >= totalPNeeded && totalD >= totalDNeeded) {
+                    // Perfect case - we can achieve ideal balance
+                    return {
+                        optimalPDistribution: Array(numJuries).fill(idealPPerJury),
+                        optimalDDistribution: Array(numJuries).fill(idealDPerJury)
+                    };
+                }
+                
+                // We can't achieve perfect balance - use maximin approach
+                let optimalPDistribution, optimalDDistribution;
+                
+                if (totalP < totalPNeeded) {
+                    // Not enough P jurors - distribute P using maximin
+                    optimalPDistribution = calculateOptimalDistribution(totalP, numJuries);
+                    
+                    // Calculate D distribution to fill remaining spots
+                    optimalDDistribution = optimalPDistribution.map(pCount => {
+                        return Math.min(targetJurySize - pCount, Math.floor(totalD / numJuries) + (totalD % numJuries > 0 ? 1 : 0));
+                    });
+                    
+                    // Adjust D distribution to use exactly totalD jurors
+                    let totalDUsed = optimalDDistribution.reduce((sum, d) => sum + d, 0);
+                    let dRemaining = totalD - totalDUsed;
+                    
+                    // Distribute remaining D jurors
+                    for (let i = 0; i < numJuries && dRemaining > 0; i++) {
+                        const maxDForJury = targetJurySize - optimalPDistribution[i];
+                        if (optimalDDistribution[i] < maxDForJury) {
+                            const canAdd = Math.min(dRemaining, maxDForJury - optimalDDistribution[i]);
+                            optimalDDistribution[i] += canAdd;
+                            dRemaining -= canAdd;
                         }
-                        
-                        // If we can make some complete juries but not all
-                        // First, distribute D optimally among complete juries
-                        const dForCompleteJuries = Math.min(totalD, completeJuries * targetJurySize);
-                        const optimalDForComplete = calculateOptimalDistribution(dForCompleteJuries, completeJuries);
-                        
-                        // Then calculate P for complete juries
-                        const optimalPForComplete = optimalDForComplete.map(d => targetJurySize - d);
-                        
-                        // Now handle remaining juries
-                        const remainingD = totalD - dForCompleteJuries;
-                        const remainingP = totalP - optimalPForComplete.reduce((sum, p) => sum + p, 0);
-                        
-                        // Distribute remaining jurors
-                        const remainingJuries = numJuries - completeJuries;
-                        const optimalDForRemaining = remainingJuries > 0 
-                            ? calculateOptimalDistribution(remainingD, remainingJuries) 
-                            : [];
-                            
-                        const optimalPForRemaining = remainingJuries > 0 
-                            ? calculateOptimalDistribution(remainingP, remainingJuries)
-                            : [];
-                        
-                        // Combine the distributions
-                        const optimalDDistribution = [...optimalDForComplete, ...optimalDForRemaining];
-                        const optimalPDistribution = [...optimalPForComplete, ...optimalPForRemaining];
-                        
-                        return {
-                            optimalPDistribution,
-                            optimalDDistribution
-                        };
                     }
+                    
+                } else if (totalD < totalDNeeded) {
+                    // Not enough D jurors - distribute D using maximin
+                    optimalDDistribution = calculateOptimalDistribution(totalD, numJuries);
+                    
+                    // Calculate P distribution to fill remaining spots
+                    optimalPDistribution = optimalDDistribution.map(dCount => {
+                        return Math.min(targetJurySize - dCount, Math.floor(totalP / numJuries) + (totalP % numJuries > 0 ? 1 : 0));
+                    });
+                    
+                    // Adjust P distribution to use exactly totalP jurors
+                    let totalPUsed = optimalPDistribution.reduce((sum, p) => sum + p, 0);
+                    let pRemaining = totalP - totalPUsed;
+                    
+                    // Distribute remaining P jurors
+                    for (let i = 0; i < numJuries && pRemaining > 0; i++) {
+                        const maxPForJury = targetJurySize - optimalDDistribution[i];
+                        if (optimalPDistribution[i] < maxPForJury) {
+                            const canAdd = Math.min(pRemaining, maxPForJury - optimalPDistribution[i]);
+                            optimalPDistribution[i] += canAdd;
+                            pRemaining -= canAdd;
+                        }
+                    }
+                } else {
+                    // This shouldn't happen given our earlier checks, but fallback to ideal
+                    optimalPDistribution = Array(numJuries).fill(idealPPerJury);
+                    optimalDDistribution = Array(numJuries).fill(idealDPerJury);
+                }
+                
+                return {
+                    optimalPDistribution,
+                    optimalDDistribution
                 };
+            };
                 
                 const { optimalPDistribution, optimalDDistribution } = calculateOptimalTargets();
                 
