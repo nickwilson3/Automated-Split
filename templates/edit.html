@@ -432,245 +432,205 @@
             }
             
             // Function to update the scoreboard
-            function updateScoreboard() {
-                console.log("Updating scoreboard...");
+        function updateScoreboard() {
+            console.log("Updating scoreboard...");
+            
+            // Get unique juries (excluding Unassigned)
+            const juries = [...new Set(assignmentsData.map(juror => juror.jury))]
+                .filter(jury => jury !== 'Unassigned')
+                .sort((a, b) => {
+                    // Convert numeric juries to letters for comparison
+                    const juryA = isNaN(a) ? a : String.fromCharCode(64 + parseInt(a));
+                    const juryB = isNaN(b) ? b : String.fromCharCode(64 + parseInt(b));
+                    
+                    return juryA.localeCompare(juryB);
+                });
+            
+            // Add Unassigned at the end if it exists
+            if (assignmentsData.some(juror => juror.jury === 'Unassigned')) {
+                juries.push('Unassigned');
+            }
+            
+            // First pass to collect all unique demographic values (excluding age groups)
+            const uniqueDemographics = {
+                gender: new Set(),
+                race: new Set(),
+                education: new Set()
+            };
+            
+            assignmentsData.forEach(juror => {
+                if (juror.Gender) uniqueDemographics.gender.add(juror.Gender);
+                if (juror.Race) uniqueDemographics.race.add(juror.Race);
+                if (juror.Education) uniqueDemographics.education.add(juror.Education);
+            });
+            
+            // Second pass to calculate stats for each jury
+            const juryStats = {};
+            
+            juries.forEach(jury => {
+                const jurors = assignmentsData.filter(juror => juror.jury === jury);
                 
-                // Get unique juries (excluding Unassigned)
-                const juries = [...new Set(assignmentsData.map(juror => juror.jury))]
-                    .filter(jury => jury !== 'Unassigned')
-                    .sort((a, b) => {
-                        // Convert numeric juries to letters for comparison
-                        const juryA = isNaN(a) ? a : String.fromCharCode(64 + parseInt(a));
-                        const juryB = isNaN(b) ? b : String.fromCharCode(64 + parseInt(b));
-                        
-                        return juryA.localeCompare(juryB);
-                    });
-                
-                // Add Unassigned at the end if it exists
-                if (assignmentsData.some(juror => juror.jury === 'Unassigned')) {
-                    juries.push('Unassigned');
-                }
-                
-                // First pass to collect all unique demographic values
-                const uniqueDemographics = {
-                    gender: new Set(),
-                    race: new Set(),
-                    ageGroup: new Set(),
-                    education: new Set()
+                // Initialize stats
+                juryStats[jury] = {
+                    total: jurors.length,
+                    leaning: { 'P': 0, 'P+': 0, 'D': 0, 'D+': 0 },
+                    gender: {},
+                    race: {},
+                    education: {}
                 };
                 
-                assignmentsData.forEach(juror => {
-                    if (juror.Gender) uniqueDemographics.gender.add(juror.Gender);
-                    if (juror.Race) uniqueDemographics.race.add(juror.Race);
-                    
-                    // Handle age groups
-                    if (juror.AgeGroup) {
-                        uniqueDemographics.ageGroup.add(juror.AgeGroup);
-                    } else if (juror.Age) {
-                        let ageGroup;
-                        const age = parseInt(juror.Age);
-                        if (age < 30) ageGroup = '<30';
-                        else if (age < 40) ageGroup = '30-39';
-                        else if (age < 50) ageGroup = '40-49';
-                        else if (age < 60) ageGroup = '50-59';
-                        else ageGroup = '60+';
-                        
-                        uniqueDemographics.ageGroup.add(ageGroup);
+                // Initialize counters for each demographic value
+                uniqueDemographics.gender.forEach(value => juryStats[jury].gender[value] = 0);
+                uniqueDemographics.race.forEach(value => juryStats[jury].race[value] = 0);
+                uniqueDemographics.education.forEach(value => juryStats[jury].education[value] = 0);
+                
+                // Count demographics
+                jurors.forEach(juror => {
+                    // Count leaning
+                    if (juror.Final_Leaning) {
+                        juryStats[jury].leaning[juror.Final_Leaning] = 
+                            (juryStats[jury].leaning[juror.Final_Leaning] || 0) + 1;
                     }
                     
-                    if (juror.Education) uniqueDemographics.education.add(juror.Education);
-                });
-                
-                // Second pass to calculate stats for each jury
-                const juryStats = {};
-                
-                juries.forEach(jury => {
-                    const jurors = assignmentsData.filter(juror => juror.jury === jury);
-                    
-                    // Initialize stats
-                    juryStats[jury] = {
-                        total: jurors.length,
-                        leaning: { 'P': 0, 'P+': 0, 'D': 0, 'D+': 0 },
-                        gender: {},
-                        race: {},
-                        ageGroup: {},
-                        education: {}
-                    };
-                    
-                    // Initialize counters for each demographic value
-                    uniqueDemographics.gender.forEach(value => juryStats[jury].gender[value] = 0);
-                    uniqueDemographics.race.forEach(value => juryStats[jury].race[value] = 0);
-                    uniqueDemographics.ageGroup.forEach(value => juryStats[jury].ageGroup[value] = 0);
-                    uniqueDemographics.education.forEach(value => juryStats[jury].education[value] = 0);
-                    
-                    // Count demographics
-                    jurors.forEach(juror => {
-                        // Count leaning
-                        if (juror.Final_Leaning) {
-                            juryStats[jury].leaning[juror.Final_Leaning] = 
-                                (juryStats[jury].leaning[juror.Final_Leaning] || 0) + 1;
-                        }
-                        
-                        // Count gender
-                        if (juror.Gender) {
-                            juryStats[jury].gender[juror.Gender] += 1;
-                        }
-                        
-                        // Count race
-                        if (juror.Race) {
-                            juryStats[jury].race[juror.Race] += 1;
-                        }
-                        
-                        // Count age groups
-                        if (juror.AgeGroup) {
-                            juryStats[jury].ageGroup[juror.AgeGroup] += 1;
-                        } else if (juror.Age) {
-                            let ageGroup;
-                            const age = parseInt(juror.Age);
-                            if (age < 30) ageGroup = '<30';
-                            else if (age < 40) ageGroup = '30-39';
-                            else if (age < 50) ageGroup = '40-49';
-                            else if (age < 60) ageGroup = '50-59';
-                            else ageGroup = '60+';
-                            
-                            juryStats[jury].ageGroup[ageGroup] += 1;
-                        }
-                        
-                        // Count education
-                        if (juror.Education) {
-                            juryStats[jury].education[juror.Education] += 1;
-                        }
-                    });
-                });
-                
-                // Generate table headers
-                const headerRow = document.createElement('tr');
-                headerRow.innerHTML = `
-                    <th>Jury</th>
-                    <th>Size</th>
-                    <th>P/D Balance</th>
-                `;
-                
-                // Add headers for gender
-                uniqueDemographics.gender.forEach(gender => {
-                    headerRow.innerHTML += `<th>${gender}</th>`;
-                });
-                
-                // Add headers for race
-                uniqueDemographics.race.forEach(race => {
-                    // Abbreviate long names
-                    const displayRace = race.length > 8 ? race.substring(0, 7) + '.' : race;
-                    headerRow.innerHTML += `<th>${displayRace}</th>`;
-                });
-                
-                // Add headers for age groups (sort them first)
-                const ageOrder = ['<30', '30-39', '40-49', '50-59', '60+'];
-                const sortedAgeGroups = [...uniqueDemographics.ageGroup]
-                    .sort((a, b) => ageOrder.indexOf(a) - ageOrder.indexOf(b));
-                
-                sortedAgeGroups.forEach(ageGroup => {
-                    headerRow.innerHTML += `<th>${ageGroup}</th>`;
-                });
-                
-                // Add headers for education (alphabetical)
-                const sortedEducation = [...uniqueDemographics.education].sort();
-                sortedEducation.forEach(edu => {
-                    // Abbreviate long names
-                    const displayEdu = edu.length > 8 ? edu.substring(0, 7) + '.' : edu;
-                    headerRow.innerHTML += `<th>${displayEdu}</th>`;
-                });
-                
-                // Set the table header
-                const scoreboardHeader = document.getElementById('scoreboard-header');
-                scoreboardHeader.innerHTML = '';
-                scoreboardHeader.appendChild(headerRow);
-                
-                // Generate table rows
-                const scoreboardBody = document.getElementById('scoreboard-body');
-                scoreboardBody.innerHTML = '';
-                
-                // First, check jury assignment issues to get optimal distribution
-                const juryIssues = checkJuryIssues();
-                
-                for (const jury of juries) {
-                    const stats = juryStats[jury];
-                    
-                    // Calculate P/D balance
-                    const pTotal = (stats.leaning['P'] || 0) + (stats.leaning['P+'] || 0);
-                    const dTotal = (stats.leaning['D'] || 0) + (stats.leaning['D+'] || 0);
-                    
-                    // Determine if jury is balanced (size and P/D)
-                    const hasCorrectSize = jury === 'Unassigned' || stats.total === targetJurySize;
-                    
-                    // If this is an actual jury (not unassigned), check against the optimal distribution
-                    let hasGoodBalance = true;
-                    let optimalP = null;
-                    let optimalD = null;
-                    
-                    if (jury !== 'Unassigned' && juryIssues.juryStats[jury]) {
-                        optimalP = juryIssues.juryStats[jury].targetP;
-                        optimalD = juryIssues.juryStats[jury].targetD;
-                        hasGoodBalance = (pTotal === optimalP && dTotal === optimalD);
-                    } else if (jury !== 'Unassigned') {
-                        // Fallback to original balance check if jury isn't in the stats
-                        hasGoodBalance = hasOptimalPDBalance(pTotal, dTotal, targetJurySize);
+                    // Count gender
+                    if (juror.Gender) {
+                        juryStats[jury].gender[juror.Gender] += 1;
                     }
                     
-                    const isOptimal = hasCorrectSize && hasGoodBalance;
-                    
-                    // Convert numeric jury to letter
-                    let juryLabel;
-                    if (jury === 'Unassigned') {
-                        juryLabel = 'Unassigned';
-                    } else if (!isNaN(jury)) {
-                        juryLabel = String.fromCharCode(64 + parseInt(jury)); // Convert 1 to A, 2 to B, etc.
-                    } else {
-                        juryLabel = jury;
+                    // Count race
+                    if (juror.Race) {
+                        juryStats[jury].race[juror.Race] += 1;
                     }
                     
-                    const row = document.createElement('tr');
-                    if (jury === 'Unassigned') {
-                        row.className = 'table-light';
-                    } else if (isOptimal) {
-                        row.className = 'table-success';
-                    } else {
-                        row.className = 'table-danger';
+                    // Count education
+                    if (juror.Education) {
+                        juryStats[jury].education[juror.Education] += 1;
                     }
-                    
-                    // Build basic columns
-                    let rowHtml = `
-                        <td><strong>${juryLabel}</strong></td>
-                        <td>${stats.total}${!hasCorrectSize && jury !== 'Unassigned' ? ` <span title="Target: ${targetJurySize}">⚠️</span>` : ''}</td>
-                        <td>${pTotal}P / ${dTotal}D${optimalP !== null && !hasGoodBalance && jury !== 'Unassigned' ? 
-                            ` <span title="Optimal: ${optimalP}P / ${optimalD}D">⚠️</span>` : ''}</td>
-                    `;
-                    
-                    // Add gender columns
-                    uniqueDemographics.gender.forEach(gender => {
-                        rowHtml += `<td>${stats.gender[gender] || 0}</td>`;
-                    });
-                    
-                    // Add race columns
-                    uniqueDemographics.race.forEach(race => {
-                        rowHtml += `<td>${stats.race[race] || 0}</td>`;
-                    });
-                    
-                    // Add age group columns
-                    sortedAgeGroups.forEach(ageGroup => {
-                        rowHtml += `<td>${stats.ageGroup[ageGroup] || 0}</td>`;
-                    });
-                    
-                    // Add education columns
-                    sortedEducation.forEach(edu => {
-                        rowHtml += `<td>${stats.education[edu] || 0}</td>`;
-                    });
-                    
-                    row.innerHTML = rowHtml;
-                    scoreboardBody.appendChild(row);
+                });
+            });
+            
+            // Generate table headers
+            const headerRow = document.createElement('tr');
+            headerRow.innerHTML = `
+                <th>Jury</th>
+                <th>Size</th>
+                <th>P/D Balance</th>
+                <th>P+</th>
+                <th>P</th>
+                <th>D</th>
+                <th>D+</th>
+            `;
+            
+            // Add headers for gender
+            uniqueDemographics.gender.forEach(gender => {
+                headerRow.innerHTML += `<th>${gender}</th>`;
+            });
+            
+            // Add headers for race
+            uniqueDemographics.race.forEach(race => {
+                // Abbreviate long names
+                const displayRace = race.length > 8 ? race.substring(0, 7) + '.' : race;
+                headerRow.innerHTML += `<th>${displayRace}</th>`;
+            });
+            
+            // Add headers for education (alphabetical)
+            const sortedEducation = [...uniqueDemographics.education].sort();
+            sortedEducation.forEach(edu => {
+                // Abbreviate long names
+                const displayEdu = edu.length > 8 ? edu.substring(0, 7) + '.' : edu;
+                headerRow.innerHTML += `<th>${displayEdu}</th>`;
+            });
+            
+            // Set the table header
+            const scoreboardHeader = document.getElementById('scoreboard-header');
+            scoreboardHeader.innerHTML = '';
+            scoreboardHeader.appendChild(headerRow);
+            
+            // Generate table rows
+            const scoreboardBody = document.getElementById('scoreboard-body');
+            scoreboardBody.innerHTML = '';
+            
+            // First, check jury assignment issues to get optimal distribution
+            const juryIssues = checkJuryIssues();
+            
+            for (const jury of juries) {
+                const stats = juryStats[jury];
+                
+                // Calculate P/D balance
+                const pTotal = (stats.leaning['P'] || 0) + (stats.leaning['P+'] || 0);
+                const dTotal = (stats.leaning['D'] || 0) + (stats.leaning['D+'] || 0);
+                
+                // Determine if jury is balanced (size and P/D)
+                const hasCorrectSize = jury === 'Unassigned' || stats.total === targetJurySize;
+                
+                // If this is an actual jury (not unassigned), check against the optimal distribution
+                let hasGoodBalance = true;
+                let optimalP = null;
+                let optimalD = null;
+                
+                if (jury !== 'Unassigned' && juryIssues.juryStats[jury]) {
+                    optimalP = juryIssues.juryStats[jury].targetP;
+                    optimalD = juryIssues.juryStats[jury].targetD;
+                    hasGoodBalance = (pTotal === optimalP && dTotal === optimalD);
+                } else if (jury !== 'Unassigned') {
+                    // Fallback to original balance check if jury isn't in the stats
+                    hasGoodBalance = hasOptimalPDBalance(pTotal, dTotal, targetJurySize);
                 }
                 
-                console.log("Scoreboard updated successfully.");
+                const isOptimal = hasCorrectSize && hasGoodBalance;
+                
+                // Convert numeric jury to letter
+                let juryLabel;
+                if (jury === 'Unassigned') {
+                    juryLabel = 'Unassigned';
+                } else if (!isNaN(jury)) {
+                    juryLabel = String.fromCharCode(64 + parseInt(jury)); // Convert 1 to A, 2 to B, etc.
+                } else {
+                    juryLabel = jury;
+                }
+                
+                const row = document.createElement('tr');
+                if (jury === 'Unassigned') {
+                    row.className = 'table-light';
+                } else if (isOptimal) {
+                    row.className = 'table-success';
+                } else {
+                    row.className = 'table-danger';
+                }
+                
+                // Build basic columns including granular leaning breakdown
+                let rowHtml = `
+                    <td><strong>${juryLabel}</strong></td>
+                    <td>${stats.total}${!hasCorrectSize && jury !== 'Unassigned' ? ` <span title="Target: ${targetJurySize}">⚠️</span>` : ''}</td>
+                    <td>${pTotal}P / ${dTotal}D${optimalP !== null && !hasGoodBalance && jury !== 'Unassigned' ? 
+                        ` <span title="Optimal: ${optimalP}P / ${optimalD}D">⚠️</span>` : ''}</td>
+                    <td>${stats.leaning['P+'] || 0}</td>
+                    <td>${stats.leaning['P'] || 0}</td>
+                    <td>${stats.leaning['D'] || 0}</td>
+                    <td>${stats.leaning['D+'] || 0}</td>
+                `;
+                
+                // Add gender columns
+                uniqueDemographics.gender.forEach(gender => {
+                    rowHtml += `<td>${stats.gender[gender] || 0}</td>`;
+                });
+                
+                // Add race columns
+                uniqueDemographics.race.forEach(race => {
+                    rowHtml += `<td>${stats.race[race] || 0}</td>`;
+                });
+                
+                // Add education columns
+                sortedEducation.forEach(edu => {
+                    rowHtml += `<td>${stats.education[edu] || 0}</td>`;
+                });
+                
+                row.innerHTML = rowHtml;
+                scoreboardBody.appendChild(row);
             }
+            
+            console.log("Scoreboard updated successfully.");
+        }
             
             // Function to check if there are unsaved changes
             function hasUnsavedChanges() {

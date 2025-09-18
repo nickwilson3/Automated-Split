@@ -47,6 +47,8 @@ def json_numpy_serializer(obj):
         return float(obj)
     elif isinstance(obj, np.ndarray):
         return obj.tolist()
+    elif isinstance(obj, np.bool_):
+        return bool(obj)
     else:
         raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
 
@@ -97,11 +99,11 @@ def upload_file():
         num_juries = int(request.form.get('num_juries', 2))
         jury_size = int(request.form.get('jury_size', 12))
         
-        # Get demographic variable rankings for weighted optimization
-        # Note: P/D Leaning and Gender will use hard constraints, others use weighted
+        # Get demographic variable rankings for weighted optimization (TIER 3 only)
+        # Note: Final_Leaning and Gender are now handled by hierarchical constraints
         rankings = {
-            'Final_Leaning': 5.0,  # Hard constraint (highest priority)
-            'Gender': 5.0,         # Hard constraint (second priority)
+            'Final_Leaning': 5.0,  # Not used - handled by TIER 1 hard constraints
+            'Gender': 5.0,         # Not used - handled by TIER 2 soft constraints
             'Race': float(5 - int(request.form.get('race_rank', 1))),
             'AgeGroup': float(5 - int(request.form.get('age_rank', 2))),
             'Education': float(5 - int(request.form.get('education_rank', 3))),
@@ -116,9 +118,10 @@ def upload_file():
         # Process data and run optimization
         try:
             print("Starting hierarchical jury optimization...")
-            print(f"Rankings for weighted optimization: {rankings}")
+            print(f"Rankings for TIER 3 optimization only: {rankings}")
+            print("Note: Final_Leaning (TIER 1) and Gender (TIER 2) use hierarchical constraints")
             
-            # Process the data (now includes enhanced balance checking)
+            # Process the data with nested maximin approach
             data_dict = process_juror_data(file_path, num_juries, jury_size)
             
             print("Data processed successfully, now converting column names...")
@@ -129,16 +132,18 @@ def upload_file():
                 data_dict['original_data'].columns = [col.replace(' ', '_') for col in data_dict['original_data'].columns]
                 print("Updated column names:", data_dict['original_data'].columns.tolist())
             
-            # Print balance info from enhanced data processing
+            # Print balance info from nested maximin data processing
             balance_info = data_dict.get('balance_info', {})
-            print(f"Balance analysis:")
-            print(f"  - P/D balance achievable: P={balance_info.get('has_enough_p', 'Unknown')}, D={balance_info.get('has_enough_d', 'Unknown')}")
-            print(f"  - Gender balance achievable: {balance_info.get('gender_balance_possible', 'Unknown')}")
-            print(f"  - Will use hard constraints for P/D: {bool(balance_info.get('optimal_p_distribution') or balance_info.get('optimal_d_distribution'))}")
-            print(f"  - Will use hard constraints for Gender: {bool(balance_info.get('optimal_male_distribution') or balance_info.get('optimal_female_distribution'))}")
+            print(f"Hierarchical balance analysis:")
+            print(f"  - TIER 1: Overall P/D balance achievable: P={balance_info.get('has_enough_p_overall', 'Unknown')}, D={balance_info.get('has_enough_d_overall', 'Unknown')}")
+            print(f"  - TIER 2: Gender balance achievable: {balance_info.get('gender_balance_possible', 'Unknown')}")
+            print(f"  - TIER 2: Granular leaning counts: {balance_info.get('granular_counts', {})}")
+            print(f"  - Will use TIER 1 hard constraints for overall P/D: Always")
+            print(f"  - Will use TIER 2 soft constraints for Gender: Always")
+            print(f"  - Will use TIER 2 soft constraints for granular leaning: Always")
             
             print("Running hierarchical optimization...")
-            # Run hierarchical optimization
+            # Run hierarchical optimization with proper constraint hierarchy
             results = optimize_jury_assignment(data_dict, rankings)
             print("Hierarchical optimization completed successfully.")
             
@@ -148,11 +153,13 @@ def upload_file():
                 print(f"Optimization status: {solution_quality['status']}")
                 if 'hierarchical_balance' in solution_quality:
                     hierarchical = solution_quality['hierarchical_balance']
-                    print(f"P/D balance achieved: {hierarchical.get('leaning', 'Unknown')}")
-                    print(f"Gender balance achieved: {hierarchical.get('gender', 'Unknown')}")
+                    print(f"TIER 1: Jury size correct: {hierarchical.get('tier1_jury_size', 'Unknown')}")
+                    print(f"TIER 1: Basic P/D balance achieved: {hierarchical.get('tier1_basic_pd', 'Unknown')}")
+                    print(f"TIER 2: Granular P+/P/D/D+ balance achieved: {hierarchical.get('tier2_granular', 'Unknown')}")
+                    print(f"TIER 2: Gender balance achieved: {hierarchical.get('tier2_gender', 'Unknown')}")
                 
-                constraint_types = solution_quality.get('constraint_types_used', {})
-                print(f"Used hard constraints: P/D={constraint_types.get('leaning', False)}, Gender={constraint_types.get('gender', False)}")
+                constraint_hierarchy = solution_quality.get('constraint_hierarchy', {})
+                print(f"Constraint hierarchy used: {constraint_hierarchy}")
             
             print("Saving results to JSON...")
             # Save results to a JSON file
@@ -381,7 +388,7 @@ def generate_report():
                 'solution_status': 'Manually Edited',
                 'objective_value': results.get('solution_quality', {}).get('objective_value', 0),
                 'balance_achieved': results.get('solution_quality', {}).get('hierarchical_balance', {}),
-                'used_hard_constraints': results.get('solution_quality', {}).get('constraint_types_used', {})
+                'constraint_hierarchy': results.get('solution_quality', {}).get('constraint_hierarchy', {})
             }
             
             # Use the fixed assignments
@@ -396,7 +403,9 @@ def generate_report():
                 # Merge the hierarchical balance info back in
                 if 'solution_quality' in results:
                     updated_results['solution_quality']['hierarchical_balance'] = results['solution_quality'].get('hierarchical_balance', {})
-                    updated_results['solution_quality']['constraint_types_used'] = results['solution_quality'].get('constraint_types_used', {})
+                    updated_results['solution_quality']['constraint_hierarchy'] = results['solution_quality'].get('constraint_hierarchy', {})
+                    # Mark as manually edited
+                    updated_results['solution_quality']['hierarchical_balance']['manually_edited'] = True
                 results['solution_quality'] = updated_results['solution_quality']
     
     # Create HTML report with embedded visualizations and hierarchical balance info

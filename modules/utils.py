@@ -43,244 +43,6 @@ def visualize_jury_demographics(results, output_dir=None):
             except (ValueError, TypeError):
                 jury_label = f'Jury {jury_num}'  # Fall back to original value
                 
-        # Match the exact case of keys used in optimization.py
-        if 'leaning' in analysis:
-            for leaning, count in analysis['leaning'].items():
-                leaning_data.append({
-                    'Jury': jury_label,
-                    'Leaning': leaning,
-                    'Count': count
-                })
-    
-    if leaning_data:
-        leaning_df = pd.DataFrame(leaning_data)
-        
-        leaning_order = ['P+', 'P', 'D', 'D+']
-
-        # Create the grouped bar chart
-        sns.barplot(x='Jury', y='Count', hue='Leaning', hue_order=leaning_order, data=leaning_df, ax=ax_leaning)
-        ax_leaning.set_title('Juror Leaning Distribution by Jury')
-        ax_leaning.set_ylabel('Number of Jurors')
-        ax_leaning.legend(title='Leaning')
-        
-        figures['leaning'] = fig_leaning
-        
-        # Save the figure if output directory is provided
-        if output_dir:
-            fig_path = os.path.join(output_dir, 'leaning_distribution.png')
-            fig_leaning.savefig(fig_path, dpi=300, bbox_inches='tight')
-            plt.close(fig_leaning)  # Close figure to free memory
-    
-    # Create gender distribution visualization
-    fig_gender, ax_gender = plt.subplots(figsize=(10, 6))
-
-    gender_data = []
-    for jury_num, analysis in jury_analysis.items():
-        # Handle both numeric and alphabetic jury IDs
-        if isinstance(jury_num, str) and jury_num.isalpha():
-            jury_label = f'Jury {jury_num}'  # Already a letter like 'A'
-        else:
-            try:
-                jury_label = f'Jury {chr(64 + int(jury_num))}'
-            except (ValueError, TypeError):
-                jury_label = f'Jury {jury_num}'  # Fall back to original value
-                
-        if 'gender' in analysis:
-            for gender, count in analysis['gender'].items():
-                gender_data.append({
-                    'Jury': jury_label,
-                    'Gender': gender,
-                    'Count': count
-                })
-
-    if gender_data:
-        gender_df = pd.DataFrame(gender_data)
-        
-        # Create the grouped bar chart
-        sns.barplot(x='Jury', y='Count', hue='Gender', data=gender_df, ax=ax_gender)
-        ax_gender.set_title('Juror Gender Distribution by Jury')
-        ax_gender.set_ylabel('Number of Jurors')
-        ax_gender.legend(title='Gender')
-        
-        figures['gender'] = fig_gender
-        
-        # Save the figure if output directory is provided
-        if output_dir:
-            fig_path = os.path.join(output_dir, 'gender_distribution.png')
-            fig_gender.savefig(fig_path, dpi=300, bbox_inches='tight')
-            plt.close(fig_gender)  # Close figure to free memory
-
-    # 2. Create race distribution visualization
-    fig_race, ax_race = plt.subplots(figsize=(12, 6))
-    
-    race_data = []
-    for jury_num, analysis in jury_analysis.items():
-        # Handle both numeric and alphabetic jury IDs
-        if isinstance(jury_num, str) and jury_num.isalpha():
-            jury_label = f'Jury {jury_num}'  # Already a letter like 'A'
-        else:
-            try:
-                jury_label = f'Jury {chr(64 + int(jury_num))}'
-            except (ValueError, TypeError):
-                jury_label = f'Jury {jury_num}'  # Fall back to original value
-                
-        if 'race' in analysis:
-            for race, count in analysis['race'].items():
-                race_data.append({
-                    'Jury': jury_label,
-                    'Race': race,
-                    'Count': count
-                })
-    
-    if race_data:
-        race_df = pd.DataFrame(race_data)
-        
-        # Create the grouped bar chart
-        sns.barplot(x='Jury', y='Count', hue='Race', data=race_df, ax=ax_race)
-        ax_race.set_title('Juror Race Distribution by Jury')
-        ax_race.set_ylabel('Number of Jurors')
-        ax_race.legend(title='Race')
-        
-        figures['race'] = fig_race
-        
-        # Save the figure if output directory is provided
-        if output_dir:
-            fig_path = os.path.join(output_dir, 'race_distribution.png')
-            fig_race.savefig(fig_path, dpi=300, bbox_inches='tight')
-            plt.close(fig_race)  # Close figure to free memory
-    
-    # 3. Create age group distribution visualization
-    fig_age, ax_age = plt.subplots(figsize=(12, 6))
-    
-    age_data = []
-    for jury_num, analysis in jury_analysis.items():
-        # Handle both numeric and alphabetic jury IDs
-        if isinstance(jury_num, str) and jury_num.isalpha():
-            jury_label = f'Jury {jury_num}'  # Already a letter like 'A'
-        else:
-            try:
-                jury_label = f'Jury {chr(64 + int(jury_num))}'
-            except (ValueError, TypeError):
-                jury_label = f'Jury {jury_num}'  # Fall back to original value
-                
-        if 'age_group' in analysis:
-            for age, count in analysis['age_group'].items():
-                age_data.append({
-                    'Jury': jury_label,
-                    'Age Group': age,
-                    'Count': count
-                })
-    
-    if age_data:
-        age_df = pd.DataFrame(age_data)
-        age_group_order = ['<30', '30-39', '40-49', '50-59', '60+']
-        # Create the grouped bar chart
-        sns.barplot(x='Jury', y='Count', hue='Age Group', hue_order=age_group_order, data=age_df, ax=ax_age)
-        ax_age.set_title('Juror Age Distribution by Jury')
-        ax_age.set_ylabel('Number of Jurors')
-        ax_age.legend(title='Age Group')
-        
-        figures['age'] = fig_age
-        
-        # Save the figure if output directory is provided
-        if output_dir:
-            fig_path = os.path.join(output_dir, 'age_distribution.png')
-            fig_age.savefig(fig_path, dpi=300, bbox_inches='tight')
-            plt.close(fig_age)  # Close figure to free memory
-    
-    # 4. Create education distribution visualization
-    fig_education, ax_education = plt.subplots(figsize=(12, 6))
-    
-    education_data = []
-    for jury_num, analysis in jury_analysis.items():
-        # Handle both numeric and alphabetic jury IDs
-        if isinstance(jury_num, str) and jury_num.isalpha():
-            jury_label = f'Jury {jury_num}'  # Already a letter like 'A'
-        else:
-            try:
-                jury_label = f'Jury {chr(64 + int(jury_num))}'
-            except (ValueError, TypeError):
-                jury_label = f'Jury {jury_num}'  # Fall back to original value
-                
-        if 'education' in analysis:
-            for education, count in analysis['education'].items():
-                education_data.append({
-                    'Jury': jury_label,
-                    'Education': education,
-                    'Count': count
-                })
-    
-    if education_data:
-        education_df = pd.DataFrame(education_data)
-        
-        # Create the grouped bar chart
-        sns.barplot(x='Jury', y='Count', hue='Education', data=education_df, ax=ax_education)
-        ax_education.set_title('Juror Education Distribution by Jury')
-        ax_education.set_ylabel('Number of Jurors')
-        ax_education.legend(title='Education')
-        
-        figures['education'] = fig_education
-        
-        # Save the figure if output directory is provided
-        if output_dir:
-            fig_path = os.path.join(output_dir, 'education_distribution.png')
-            fig_education.savefig(fig_path, dpi=300, bbox_inches='tight')
-            plt.close(fig_education)  # Close figure to free memory
-    
-    # 5. Create marital status distribution visualization
-    fig_marital, ax_marital = plt.subplots(figsize=(12, 6))
-    
-    marital_data = []
-    for jury_num, analysis in jury_analysis.items():
-        if isinstance(jury_num, str) and jury_num.isalpha():
-            jury_label = f'Jury {jury_num}'
-        else:
-            try:
-                jury_label = f'Jury {chr(64 + int(jury_num))}'
-            except (ValueError, TypeError):
-                jury_label = f'Jury {jury_num}'
-                
-        if 'marital' in analysis:
-            for marital, count in analysis['marital'].items():
-                marital_data.append({
-                    'Jury': jury_label,
-                    'Marital Status': marital,
-                    'Count': count
-                })
-    
-    if marital_data:
-        marital_df = pd.DataFrame(marital_data)
-        
-        # Create the grouped bar chart
-        sns.barplot(x='Jury', y='Count', hue='Marital Status', data=marital_df, ax=ax_marital)
-        ax_marital.set_title('Juror Marital Status Distribution by Jury')
-        ax_marital.set_ylabel('Number of Jurors')
-        ax_marital.legend(title='Marital Status')
-        
-        figures['marital'] = fig_marital
-        
-        # Save the figure if output directory is provided
-        if output_dir:
-            fig_path = os.path.join(output_dir, 'marital_distribution.png')
-            fig_marital.savefig(fig_path, dpi=300, bbox_inches='tight')
-            plt.close(fig_marital)  # Close figure to free memory
-    
-    # 6. Create summary heatmap showing balance across all demographics
-    # Prepare data for the heatmap
-    heatmap_data = {}
-    # Use the exact keys used in optimization.py's jury_analysis
-    demographic_vars = ['leaning', 'race', 'age_group', 'education', 'marital']
-    
-    for jury_num in jury_analysis:
-        # Handle both numeric and alphabetic jury IDs
-        if isinstance(jury_num, str) and jury_num.isalpha():
-            jury_label = f'Jury {jury_num}'  # Already a letter like 'A'
-        else:
-            try:
-                jury_label = f'Jury {chr(64 + int(jury_num))}'
-            except (ValueError, TypeError):
-                jury_label = f'Jury {jury_num}'  # Fall back to original value
-                
         heatmap_data[jury_label] = {}
         
         # Calculate P-D balance
@@ -315,7 +77,6 @@ def visualize_jury_demographics(results, output_dir=None):
     return figures
 
 
-# In utils.py
 def export_results_to_excel(results, output_path=None):
     """
     Export the optimization results to an Excel file.
@@ -332,22 +93,12 @@ def export_results_to_excel(results, output_path=None):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         output_path = f"jury_assignments_{timestamp}.xlsx"
     
-    # Debug: print the summary DataFrame columns before writing to Excel
-    if 'summary' in results:
-        print("Summary DataFrame columns before Excel export:")
-        print(results['summary'].columns.tolist())
-    
     # Create Excel writer
     with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
         # Export summary to a sheet
         if 'summary' in results:
-            # Make sure we're exporting the entire DataFrame
             results['summary'].to_excel(writer, sheet_name='Summary', index=False)
-            
-            # Debug: Confirm what was written
-            print(f"Wrote {len(results['summary'])} rows and {len(results['summary'].columns)} columns to Summary sheet")
         
-        # Rest of the function remains the same...
         # Export detailed assignments to a sheet
         if 'detailed_assignments' in results:
             results['detailed_assignments'].to_excel(writer, sheet_name='Assignments', index=False)
@@ -367,6 +118,12 @@ def export_results_to_excel(results, output_path=None):
                 for var, dev in solution_quality['deviations'].items():
                     sq_data['Metric'].append(f"{var} Deviation")
                     sq_data['Value'].append(dev)
+            
+            # Add hierarchical balance info
+            if 'hierarchical_balance' in solution_quality:
+                for key, value in solution_quality['hierarchical_balance'].items():
+                    sq_data['Metric'].append(f"Hierarchical Balance - {key}")
+                    sq_data['Value'].append(value)
             
             sq_df = pd.DataFrame(sq_data)
             sq_df.to_excel(writer, sheet_name='Solution_Quality', index=False)
@@ -719,6 +476,7 @@ def create_html_report(results, output_path=None, include_visualizations=True):
             .section { margin-bottom: 30px; }
             .metric { font-weight: bold; }
             .visualization { margin: 20px 0; text-align: center; }
+            .tier-info { background-color: #e8f5e9; padding: 10px; border-radius: 5px; margin: 10px 0; }
         </style>
     </head>
     <body>
@@ -726,7 +484,13 @@ def create_html_report(results, output_path=None, include_visualizations=True):
         <p>Generated on: """ + datetime.now().strftime("%Y-%m-%d %H:%M:%S") + """</p>
         
         <div class="section">
-            <h2>Solution Summary</h2>
+            <h2>Hierarchical Optimization Summary</h2>
+            <div class="tier-info">
+                <h4>Constraint Hierarchy Applied:</h4>
+                <p><strong>TIER 1 (INVIOLABLE):</strong> Jury size and basic P/D balance - hard constraints that can never be violated</p>
+                <p><strong>TIER 2 (SECONDARY):</strong> Granular P+/P/D/D+ balance and gender balance - soft constraints with high penalty</p>
+                <p><strong>TIER 3 (TERTIARY):</strong> Other demographics - weighted optimization with lower penalty</p>
+            </div>
     """
     
     # Add solution quality information
@@ -737,9 +501,21 @@ def create_html_report(results, output_path=None, include_visualizations=True):
             <p><span class="metric">Objective Value:</span> {solution_quality['objective_value']}</p>
         """
         
+        # Add hierarchical balance results
+        if 'hierarchical_balance' in solution_quality:
+            balance = solution_quality['hierarchical_balance']
+            html_content += "<h3>Hierarchical Balance Achievement</h3>"
+            html_content += "<table>"
+            html_content += "<tr><th>Tier</th><th>Constraint Type</th><th>Achieved</th></tr>"
+            html_content += f"<tr><td>TIER 1</td><td>Jury Size Correct</td><td>{'✓' if balance.get('tier1_jury_size', False) else '✗'}</td></tr>"
+            html_content += f"<tr><td>TIER 1</td><td>Basic P/D Balance</td><td>{'✓' if balance.get('tier1_basic_pd', False) else '✗'}</td></tr>"
+            html_content += f"<tr><td>TIER 2</td><td>Granular P+/P/D/D+ Balance</td><td>{'✓' if balance.get('tier2_granular', False) else '✗'}</td></tr>"
+            html_content += f"<tr><td>TIER 2</td><td>Gender Balance</td><td>{'✓' if balance.get('tier2_gender', False) else '✗'}</td></tr>"
+            html_content += "</table>"
+        
         # Add deviations if available
         if 'deviations' in solution_quality:
-            html_content += "<h3>Demographic Balance Deviations</h3>"
+            html_content += "<h3>Soft Constraint Deviations</h3>"
             html_content += "<table>"
             html_content += "<tr><th>Demographic Variable</th><th>Total Deviation</th></tr>"
             
@@ -842,26 +618,6 @@ def create_html_report(results, output_path=None, include_visualizations=True):
             
             html_content += "</div>"
     
-    # Add education balance metrics section
-    if 'balance_metrics' in results and 'education' in results['balance_metrics']:
-        html_content += """
-        <div class="section">
-            <h2>Education Balance Analysis</h2>
-            <table>
-                <tr><th>Education Level</th><th>Count</th><th>Percentage</th></tr>
-        """
-        
-        education_metrics = results['balance_metrics']['education']
-        
-        for edu_level, count in education_metrics['counts'].items():
-            percentage = education_metrics['percentages'].get(edu_level, 0)
-            html_content += f"<tr><td>{edu_level}</td><td>{count}</td><td>{percentage:.1f}%</td></tr>"
-        
-        html_content += """
-            </table>
-        </div>
-        """
-    
     html_content += """
         </div>
     </body>
@@ -869,17 +625,16 @@ def create_html_report(results, output_path=None, include_visualizations=True):
     """
     
     # Write HTML to file
-    with open(output_path, 'w') as f:
+    with open(output_path, 'w', encoding='utf-8') as f:
         f.write(html_content)
     
     print(f"HTML report saved to {output_path}")
     return output_path
 
 
-
 def analyze_optimization_results(results, data_dict):
     """
-    Analyze the optimization results to provide insights.
+    Analyze the optimization results to provide insights with hierarchical focus.
     
     Parameters:
     results (dict): Formatted results from the optimization process
@@ -890,63 +645,64 @@ def analyze_optimization_results(results, data_dict):
     """
     analysis = {
         'metrics': {},
-        'insights': []
+        'insights': [],
+        'hierarchical_assessment': {}
     }
     
-    # Existing analysis code...
+    # Assess hierarchical constraint achievement
+    if 'solution_quality' in results and 'hierarchical_balance' in results['solution_quality']:
+        balance = results['solution_quality']['hierarchical_balance']
+        
+        analysis['hierarchical_assessment'] = {
+            'tier1_success': balance.get('tier1_jury_size', False) and balance.get('tier1_basic_pd', False),
+            'tier2_success': balance.get('tier2_granular', False) and balance.get('tier2_gender', False),
+            'overall_quality': 'excellent' if balance.get('tier1_jury_size', False) and balance.get('tier1_basic_pd', False) 
+                              else 'poor'
+        }
+        
+        # Add insights based on hierarchical success
+        if analysis['hierarchical_assessment']['tier1_success']:
+            analysis['insights'].append("TIER 1 constraints satisfied: All juries have correct size and basic P/D balance.")
+        else:
+            analysis['insights'].append("WARNING: TIER 1 constraint violations detected. This should not happen with proper optimization.")
+        
+        if analysis['hierarchical_assessment']['tier2_success']:
+            analysis['insights'].append("TIER 2 optimization successful: Achieved both granular P+/P/D/D+ balance and gender balance.")
+        else:
+            if not balance.get('tier2_granular', False):
+                analysis['insights'].append("TIER 2: Granular P+/P/D/D+ balance not fully achieved due to limited juror availability in specific subcategories.")
+            if not balance.get('tier2_gender', False):
+                analysis['insights'].append("TIER 2: Gender balance not fully achieved due to available juror pool constraints.")
     
-    # Add education distribution analysis
-    if 'balance_metrics' in results and 'education' in results['balance_metrics']:
-        education = results['balance_metrics']['education']
+    # Existing analysis code for education and other demographics...
+    if 'balance_metrics' in results and 'leaning' in results['balance_metrics']:
+        leaning = results['balance_metrics']['leaning']
         
-        # Store education metrics
-        analysis['metrics']['education_distribution'] = education['counts']
-        analysis['metrics']['education_percentages'] = education['percentages']
+        # Store leaning metrics
+        analysis['metrics']['overall_p'] = leaning.get('overall_p', 0)
+        analysis['metrics']['overall_d'] = leaning.get('overall_d', 0)
+        analysis['metrics']['p_percentage'] = leaning.get('p_percentage', 0)
         
-        # Find most common education level
-        if education['counts']:
-            most_common_edu = max(education['counts'], key=education['counts'].get)
-            most_common_pct = education['percentages'].get(most_common_edu, 0)
-            
-            analysis['metrics']['most_common_education'] = most_common_edu
-            analysis['metrics']['most_common_education_pct'] = most_common_pct
-            
-            # Add insight about education distribution
-            analysis['insights'].append(f"The most common education level is '{most_common_edu}' ({most_common_pct:.1f}% of jurors).")
+        # Add insight about overall balance
+        if leaning.get('tier1_optimal_achieved', False):
+            analysis['insights'].append(f"Basic P/D balance optimal: {leaning['overall_p']} P-leaning and {leaning['overall_d']} D-leaning jurors assigned.")
         
-        # Check education distribution across juries
-        if 'jury_analysis' in results:
-            jury_analysis = results['jury_analysis']
+        # Granular leaning analysis
+        if 'granular_counts' in leaning:
+            granular = leaning['granular_counts']
+            analysis['metrics']['granular_distribution'] = granular
             
-            # Calculate education distribution variance across juries
-            education_variance = {}
-            
-            for jury_num, jury_data in jury_analysis.items():
-                if 'education' in jury_data:
-                    for edu, count in jury_data['education'].items():
-                        if edu not in education_variance:
-                            education_variance[edu] = []
-                        education_variance[edu].append(count)
-            
-            # Calculate coefficient of variation for each education level
-            high_variance_edu = []
-            for edu, counts in education_variance.items():
-                if len(counts) > 1:  # Need at least 2 juries to calculate variance
-                    mean = sum(counts) / len(counts)
-                    if mean > 0:
-                        variance = sum((x - mean) ** 2 for x in counts) / len(counts)
-                        std_dev = variance ** 0.5
-                        cv = std_dev / mean
-                        
-                        if cv > 0.5:  # High variance threshold
-                            high_variance_edu.append((edu, cv))
-            
-            if high_variance_edu:
-                edu_list = ", ".join([f"'{edu}' (CV={cv:.2f})" for edu, cv in high_variance_edu])
-                analysis['insights'].append(f"There is significant variation in the distribution of education levels across juries for: {edu_list}")
+            total_granular = sum(granular.values())
+            if total_granular > 0:
+                p_plus_pct = round(granular.get('P+', 0) / total_granular * 100, 1)
+                p_pct = round(granular.get('P', 0) / total_granular * 100, 1)
+                d_pct = round(granular.get('D', 0) / total_granular * 100, 1)
+                d_plus_pct = round(granular.get('D+', 0) / total_granular * 100, 1)
+                
+                analysis['insights'].append(f"Granular leaning distribution: P+ ({p_plus_pct}%), P ({p_pct}%), D ({d_pct}%), D+ ({d_plus_pct}%)")
     
     return analysis
-# Add these functions to utils.py
+
 
 def export_assignments_for_editing(results, output_path=None):
     """
@@ -993,8 +749,17 @@ def export_assignments_for_editing(results, output_path=None):
         return None
 
 
-# Replace in utils.py
 def load_edited_assignments(assignments_file_path, original_results):
+    """
+    Load edited assignments from Excel file and update results.
+    
+    Parameters:
+    assignments_file_path (str): Path to the edited Excel file
+    original_results (dict): Original optimization results
+    
+    Returns:
+    dict: Updated results with edited assignments
+    """
     try:
         # Load the edited assignments
         edited_df = pd.read_excel(assignments_file_path, sheet_name='Assignments', skiprows=2)
@@ -1042,42 +807,54 @@ def load_edited_assignments(assignments_file_path, original_results):
             d_count = sum(count for leaning, count in analysis['leaning'].items() 
                          if leaning in ['D', 'D+'])
             
+            # Handle jury label conversion
+            if isinstance(jury_num, str) and jury_num.isalpha():
+                jury_label = jury_num
+            else:
+                try:
+                    jury_label = chr(64 + int(jury_num))
+                except (ValueError, TypeError):
+                    jury_label = str(jury_num)
+            
             summary = {
-                'Jury': chr(64 + int(jury_num)),
+                'Jury': jury_label,
                 'Size': analysis['size'],
                 'P_Leaning': p_count,
                 'D_Leaning': d_count,
-                'P_D_Ratio': f"{p_count}:{d_count}"
+                'P_D_Ratio': f"{p_count}:{d_count}",
+                'P_Overall': p_count,
+                'D_Overall': d_count,
+                'P+_Count': analysis['leaning'].get('P+', 0),
+                'P_Count': analysis['leaning'].get('P', 0),
+                'D_Count': analysis['leaning'].get('D', 0),
+                'D+_Count': analysis['leaning'].get('D+', 0)
             }
             
-            # Add race distribution if available
+            # Add demographic distributions
+            if 'gender' in analysis and analysis['gender']:
+                for gender, count in analysis['gender'].items():
+                    summary[f'Gender_{gender}'] = count
+            
             if 'race' in analysis and analysis['race']:
                 for race, count in analysis['race'].items():
                     summary[f'Race_{race}'] = count
             
-            if 'gender' in analysis and analysis['gender']:
-                for gender, count in analysis['gender'].items():
-                    summary[{gender}] = count
-            
-            # Add age group distribution if available
             if 'age_group' in analysis and analysis['age_group']:
                 for age, count in analysis['age_group'].items():
                     summary[f'Age_{age}'] = count
             
-            # Add education distribution if available - this is the key addition
             if 'education' in analysis and analysis['education']:
                 for edu, count in analysis['education'].items():
                     summary[f'Education_{edu}'] = count
+            
+            if 'marital' in analysis and analysis['marital']:
+                for marital, count in analysis['marital'].items():
+                    summary[f'Marital_{marital}'] = count
             
             jury_summaries.append(summary)
         
         if jury_summaries:
             updated_results['summary'] = pd.DataFrame(jury_summaries)
-        
-        # Store education columns explicitly to ensure they're preserved
-        if 'summary' in updated_results:
-            education_columns = [col for col in updated_results['summary'].columns if col.startswith('Education_')]
-            updated_results['education_columns'] = education_columns
         
         # Recalculate balance metrics
         balance_metrics = {}
@@ -1087,29 +864,52 @@ def load_edited_assignments(assignments_file_path, original_results):
             overall_p = edited_df['Final_Leaning'].isin(['P', 'P+']).sum()
             overall_d = edited_df['Final_Leaning'].isin(['D', 'D+']).sum()
             
+            # Granular counts
+            granular_counts = {
+                'P+': (edited_df['Final_Leaning'] == 'P+').sum(),
+                'P': (edited_df['Final_Leaning'] == 'P').sum(),
+                'D': (edited_df['Final_Leaning'] == 'D').sum(),
+                'D+': (edited_df['Final_Leaning'] == 'D+').sum()
+            }
+            
             leaning_balance = {
                 'overall_p': overall_p,
                 'overall_d': overall_d,
-                'p_percentage': round(overall_p / len(edited_df) * 100, 2)
+                'p_percentage': round(overall_p / len(edited_df) * 100, 2),
+                'granular_counts': granular_counts,
+                'tier1_optimal_achieved': False,  # Manual edits may not maintain optimality
+                'tier2_granular_achieved': False  # Manual edits may not maintain optimality
             }
             
             balance_metrics['leaning'] = leaning_balance
+        
+        # Gender balance
+        if 'Gender' in edited_df.columns:
+            overall_male = edited_df['Gender'].isin(['M', 'Male', 'male', 'MALE']).sum()
+            overall_female = edited_df['Gender'].isin(['F', 'Female', 'female', 'FEMALE']).sum()
+            
+            gender_balance = {
+                'overall_male': overall_male,
+                'overall_female': overall_female,
+                'male_percentage': round(overall_male / len(edited_df) * 100, 2),
+                'tier2_achieved': False  # Manual edits may not maintain optimality
+            }
+            
+            balance_metrics['gender'] = gender_balance
         
         updated_results['balance_metrics'] = balance_metrics
         
         # Update solution quality to indicate manual editing
         if 'solution_quality' in updated_results:
             updated_results['solution_quality']['status'] = "Manually Edited"
-            updated_results['solution_quality']['notes'] = "Assignments were manually adjusted after optimization"
+            updated_results['solution_quality']['notes'] = "Assignments were manually adjusted after hierarchical optimization"
+            
+            # Update hierarchical balance to reflect that manual edits may have changed optimality
+            if 'hierarchical_balance' in updated_results['solution_quality']:
+                updated_results['solution_quality']['hierarchical_balance']['manually_edited'] = True
         
         print(f"Successfully loaded edited assignments from {assignments_file_path}")
-        print(f"Updated results reflect manual adjustments")
-        
-        # Debug - check for education columns
-        if 'summary' in updated_results:
-            print("Education columns in final summary:")
-            edu_cols = [col for col in updated_results['summary'].columns if col.startswith('Education_')]
-            print(edu_cols)
+        print(f"Updated results reflect manual adjustments (optimality may no longer be guaranteed)")
         
         return updated_results
     

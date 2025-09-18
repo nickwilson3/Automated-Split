@@ -34,7 +34,7 @@ def validate_juror_data(df, required_columns=None, drop_missing=False):
     tuple: (is_valid (bool), message (str), cleaned_df (DataFrame))
     """
     if required_columns is None:
-        required_columns = ['Name', 'Final_Leaning']  # Updated to match your column name
+        required_columns = ['Name', 'Final_Leaning']
     
     # Check required columns
     missing_columns = [col for col in required_columns if col not in df.columns]
@@ -59,10 +59,10 @@ def validate_juror_data(df, required_columns=None, drop_missing=False):
     return True, "Data validation passed", df
 
 
-def check_optimization_feasibility(df, num_juries, jury_size):
+def check_sequential_optimization_feasibility(df, num_juries, jury_size):
     """
-    Check if the jury optimization problem is feasible with the given parameters.
-    Now includes enhanced gender balance checking.
+    Check if sequential jury optimization is feasible with the given parameters.
+    For sequential optimization, we only need to ensure we have enough total jurors.
     
     Parameters:
     df (pandas.DataFrame): Juror dataframe
@@ -70,250 +70,179 @@ def check_optimization_feasibility(df, num_juries, jury_size):
     jury_size (int): Size of each jury
     
     Returns:
-    tuple: (is_feasible (bool), message (str), balance_info (dict))
+    tuple: (is_feasible (bool), message (str), feasibility_info (dict))
     """
     total_jurors_needed = num_juries * jury_size
     total_jurors_available = len(df)
     
-    # Initialize comprehensive balance info dictionary
-    balance_info = {
-        # P/D balance info
-        'has_enough_p': True,
-        'has_enough_d': True,
-        'total_p': 0,
-        'total_d': 0,
-        'optimal_p_distribution': None,
-        'optimal_d_distribution': None,
-        'ideal_p_per_jury': None,
-        'ideal_d_per_jury': None,
-        
-        # Gender balance info (new)
-        'has_enough_male': True,
-        'has_enough_female': True,
-        'total_male': 0,
-        'total_female': 0,
-        'optimal_male_distribution': None,
-        'optimal_female_distribution': None,
-        'gender_balance_possible': True,
-        
-        # General info
-        'unassigned_count': max(0, total_jurors_available - total_jurors_needed),
-        'can_fill_all_juries': total_jurors_available >= total_jurors_needed
+    # Initialize feasibility info dictionary
+    feasibility_info = {
+        'total_jurors_available': total_jurors_available,
+        'total_jurors_needed': total_jurors_needed,
+        'can_fill_all_juries': total_jurors_available >= total_jurors_needed,
+        'excess_jurors': max(0, total_jurors_available - total_jurors_needed),
+        'complete_juries_possible': min(num_juries, total_jurors_available // jury_size),
+        'sequential_approach': True
     }
     
     # Basic feasibility check
-    if total_jurors_needed > total_jurors_available:
-        return False, f"Insufficient jurors: Need {total_jurors_needed} but only have {total_jurors_available}", balance_info
+    if total_jurors_available < jury_size:
+        return False, f"Insufficient jurors: Need at least {jury_size} to fill one jury but only have {total_jurors_available}", feasibility_info
     
-    # P/D leaning balance checks
+    # Calculate demographic distributions for information
     if 'Final_Leaning' in df.columns:
-        p_count = df['Final_Leaning'].isin(['P', 'P+']).sum()
-        d_count = df['Final_Leaning'].isin(['D', 'D+']).sum()
+        # Count overall P and D
+        p_overall_count = df['Final_Leaning'].isin(['P', 'P+']).sum()
+        d_overall_count = df['Final_Leaning'].isin(['D', 'D+']).sum()
         
-        # Store counts in balance info
-        balance_info['total_p'] = p_count
-        balance_info['total_d'] = d_count
+        # Count granular leanings
+        granular_counts = {
+            'P+': (df['Final_Leaning'] == 'P+').sum(),
+            'P': (df['Final_Leaning'] == 'P').sum(),
+            'D': (df['Final_Leaning'] == 'D').sum(),
+            'D+': (df['Final_Leaning'] == 'D+').sum()
+        }
         
-        # Check if perfect balance is possible
-        if jury_size % 2 == 0:  # Even jury size
-            ideal_p_per_jury = jury_size // 2
-            ideal_d_per_jury = jury_size // 2
-            
-            balance_info['ideal_p_per_jury'] = ideal_p_per_jury
-            balance_info['ideal_d_per_jury'] = ideal_d_per_jury
-            
-            # Check if we have enough P jurors
-            if p_count < ideal_p_per_jury * num_juries:
-                balance_info['has_enough_p'] = False
-                # Calculate optimal P distribution using maximin approach
-                balance_info['optimal_p_distribution'] = calculate_optimal_distribution(p_count, num_juries)
-            
-            # Check if we have enough D jurors
-            if d_count < ideal_d_per_jury * num_juries:
-                balance_info['has_enough_d'] = False
-                # Calculate optimal D distribution using maximin approach
-                balance_info['optimal_d_distribution'] = calculate_optimal_distribution(d_count, num_juries)
-                
-            # If both are sufficient, set perfect distributions
-            if balance_info['has_enough_p'] and balance_info['has_enough_d']:
-                balance_info['optimal_p_distribution'] = [ideal_p_per_jury] * num_juries
-                balance_info['optimal_d_distribution'] = [ideal_d_per_jury] * num_juries
+        # Store counts in feasibility info
+        feasibility_info['total_p_overall'] = p_overall_count
+        feasibility_info['total_d_overall'] = d_overall_count
+        feasibility_info['granular_counts'] = granular_counts
         
-        # For odd jury size, we'll need to decide which juries get the extra P or D
-        else:
-            # For odd sizes, one side gets the extra juror
-            base_p = jury_size // 2
-            base_d = jury_size // 2
-            
-            # Check if we can achieve near-perfect balance
-            if p_count >= base_p * num_juries and d_count >= base_d * num_juries:
-                # We can achieve good balance, calculate optimal distribution
-                balance_info['optimal_p_distribution'] = calculate_optimal_distribution(
-                    min(p_count, num_juries * (base_p + 1)), num_juries
-                )
-                balance_info['optimal_d_distribution'] = [
-                    jury_size - p for p in balance_info['optimal_p_distribution']
-                ]
-            else:
-                # Not enough for good balance, use maximin
-                if p_count < base_p * num_juries:
-                    balance_info['has_enough_p'] = False
-                    balance_info['optimal_p_distribution'] = calculate_optimal_distribution(p_count, num_juries)
-                if d_count < base_d * num_juries:
-                    balance_info['has_enough_d'] = False
-                    balance_info['optimal_d_distribution'] = calculate_optimal_distribution(d_count, num_juries)
+        # Calculate P/D balance potential
+        ideal_p_per_jury = jury_size // 2
+        ideal_d_per_jury = jury_size - ideal_p_per_jury
+        
+        max_balanced_juries_p = p_overall_count // ideal_p_per_jury if ideal_p_per_jury > 0 else num_juries
+        max_balanced_juries_d = d_overall_count // ideal_d_per_jury if ideal_d_per_jury > 0 else num_juries
+        
+        feasibility_info['max_balanced_juries'] = min(max_balanced_juries_p, max_balanced_juries_d, feasibility_info['complete_juries_possible'])
+        
+        print(f"P/D Balance Analysis:")
+        print(f"  - Available: {p_overall_count} P-leaning, {d_overall_count} D-leaning")
+        print(f"  - Ideal per jury: {ideal_p_per_jury} P, {ideal_d_per_jury} D")
+        print(f"  - Maximum balanced juries possible: {feasibility_info['max_balanced_juries']}")
+        
+        print(f"Granular Leaning Analysis:")
+        for category, count in granular_counts.items():
+            print(f"  - {category}: {count} available")
     
-    # Gender balance checks (new logic)
+    # Gender analysis
     if 'Gender' in df.columns:
-        # Count available male and female jurors
         male_count = df['Gender'].isin(['M', 'Male', 'male', 'MALE']).sum()
         female_count = df['Gender'].isin(['F', 'Female', 'female', 'FEMALE']).sum()
         
-        balance_info['total_male'] = male_count
-        balance_info['total_female'] = female_count
+        feasibility_info['total_male'] = male_count
+        feasibility_info['total_female'] = female_count
         
-        # Calculate optimal gender distribution GIVEN the leaning constraints
-        optimal_gender_distribution = calculate_optimal_gender_distribution(
-            balance_info, male_count, female_count, num_juries, jury_size
+        ideal_male_per_jury = jury_size // 2
+        ideal_female_per_jury = jury_size - ideal_male_per_jury
+        
+        max_gender_balanced_juries = min(
+            male_count // ideal_male_per_jury if ideal_male_per_jury > 0 else num_juries,
+            female_count // ideal_female_per_jury if ideal_female_per_jury > 0 else num_juries,
+            feasibility_info['complete_juries_possible']
         )
         
-        balance_info.update(optimal_gender_distribution)
+        feasibility_info['max_gender_balanced_juries'] = max_gender_balanced_juries
+        
+        print(f"Gender Balance Analysis:")
+        print(f"  - Available: {male_count} male, {female_count} female")
+        print(f"  - Maximum gender-balanced juries possible: {max_gender_balanced_juries}")
     
-    # Determine overall feasibility message
+    # Determine feasibility message
     messages = []
-    if not balance_info['has_enough_p']:
-        messages.append(f"Warning: Not enough 'P' jurors for perfect balance. Have {balance_info['total_p']}, optimal distribution calculated.")
-    if not balance_info['has_enough_d']:
-        messages.append(f"Warning: Not enough 'D' jurors for perfect balance. Have {balance_info['total_d']}, optimal distribution calculated.")
-    if not balance_info['gender_balance_possible']:
-        messages.append(f"Warning: Perfect gender balance not possible given leaning constraints.")
     
-    final_message = "; ".join(messages) if messages else "Problem appears feasible with good balance potential"
+    if feasibility_info['can_fill_all_juries']:
+        messages.append(f"Sequential optimization feasible: Can fill all {num_juries} juries with {jury_size} jurors each")
+    else:
+        complete_juries = feasibility_info['complete_juries_possible']
+        messages.append(f"Partial filling: Can fill {complete_juries} complete juries out of {num_juries} requested")
     
-    return True, final_message, balance_info
+    if 'max_balanced_juries' in feasibility_info:
+        balanced_juries = feasibility_info['max_balanced_juries']
+        if balanced_juries < feasibility_info['complete_juries_possible']:
+            messages.append(f"Perfect P/D balance achievable for {balanced_juries} juries; remaining juries may be imbalanced")
+        else:
+            messages.append(f"Perfect P/D balance potentially achievable for all fillable juries")
+    
+    # Sequential optimization is generally feasible if we can fill at least one jury
+    is_feasible = feasibility_info['complete_juries_possible'] >= 1
+    final_message = "; ".join(messages)
+    
+    return is_feasible, final_message, feasibility_info
 
 
-def calculate_optimal_distribution(total_count, num_groups):
+def estimate_jury_balance_quality(df, num_juries, jury_size):
     """
-    Calculate the optimal distribution of limited resources across groups
-    using a maximin approach (maximizing the minimum allocation).
+    Estimate the expected balance quality for sequential optimization.
+    Provides insight into what balance levels are achievable.
     
     Parameters:
-    total_count (int): Total number of resources to distribute
-    num_groups (int): Number of groups to distribute across
-    
-    Returns:
-    list: Optimal distribution with the highest possible minimum value
-    """
-    # Base distribution - start by dividing evenly
-    base_value = total_count // num_groups
-    
-    # Calculate how many groups need to get an extra resource
-    remainder = total_count % num_groups
-    
-    # Create the distribution: some groups get (base_value + 1), the rest get base_value
-    distribution = [base_value + 1] * remainder + [base_value] * (num_groups - remainder)
-    
-    return distribution
-
-
-def calculate_optimal_gender_distribution(balance_info, male_count, female_count, num_juries, jury_size):
-    """
-    Calculate optimal gender distribution given the P/D leaning constraints.
-    This is the key new function for hierarchical optimization.
-    
-    Parameters:
-    balance_info (dict): Contains P/D distribution information
-    male_count (int): Total male jurors available
-    female_count (int): Total female jurors available  
+    df (pandas.DataFrame): Juror dataframe
     num_juries (int): Number of juries to form
     jury_size (int): Size of each jury
     
     Returns:
-    dict: Gender distribution information to add to balance_info
+    dict: Balance quality estimates
     """
-    gender_info = {
-        'has_enough_male': True,
-        'has_enough_female': True,
-        'optimal_male_distribution': None,
-        'optimal_female_distribution': None,
-        'gender_balance_possible': True,
-        'gender_targets_per_jury': []
+    quality_estimates = {
+        'sequential_predictions': {},
+        'overall_quality': 'unknown'
     }
     
-    # If we don't have P/D distributions, fall back to simple gender balance
-    if not balance_info.get('optimal_p_distribution') and not balance_info.get('optimal_d_distribution'):
-        # Simple case: just try to balance gender across all juries
-        ideal_male_per_jury = jury_size // 2
-        ideal_female_per_jury = jury_size - ideal_male_per_jury
+    total_jurors = len(df)
+    fillable_juries = min(num_juries, total_jurors // jury_size)
+    
+    if 'Final_Leaning' in df.columns:
+        p_total = df['Final_Leaning'].isin(['P', 'P+']).sum()
+        d_total = df['Final_Leaning'].isin(['D', 'D+']).sum()
         
-        if male_count >= ideal_male_per_jury * num_juries:
-            gender_info['optimal_male_distribution'] = [ideal_male_per_jury] * num_juries
-        else:
-            gender_info['has_enough_male'] = False
-            gender_info['optimal_male_distribution'] = calculate_optimal_distribution(male_count, num_juries)
-            
-        if female_count >= ideal_female_per_jury * num_juries:
-            gender_info['optimal_female_distribution'] = [ideal_female_per_jury] * num_juries
-        else:
-            gender_info['has_enough_female'] = False
-            gender_info['optimal_female_distribution'] = calculate_optimal_distribution(female_count, num_juries)
-            
-        # Check if perfect gender balance is possible
-        total_assigned = sum(gender_info['optimal_male_distribution']) + sum(gender_info['optimal_female_distribution'])
-        if total_assigned < num_juries * jury_size:
-            gender_info['gender_balance_possible'] = False
-            
-        return gender_info
-    
-    # Complex case: we have P/D constraints, need to find best gender balance within those constraints
-    # This is where the hierarchical optimization logic would go
-    
-    # For now, we'll implement a simplified version that tries to balance gender
-    # while respecting that each jury needs to maintain its P/D target
-    
-    # Start with the assumption that we'll try to get as close to 50/50 gender as possible
-    # within each jury, given the size constraints
-    optimal_male_dist = []
-    optimal_female_dist = []
-    
-    for jury_idx in range(num_juries):
-        # For each jury, try to get as close to 50/50 gender as possible
-        target_male = jury_size // 2
-        target_female = jury_size - target_male
+        # Estimate balance for each jury in sequence
+        remaining_p = p_total
+        remaining_d = d_total
+        remaining_total = total_jurors
         
-        optimal_male_dist.append(target_male)
-        optimal_female_dist.append(target_female)
+        for jury_num in range(1, fillable_juries + 1):
+            ideal_p = jury_size // 2
+            ideal_d = jury_size - ideal_p
+            
+            # Estimate what this jury can achieve
+            available_p = min(remaining_p, ideal_p)
+            available_d = min(remaining_d, ideal_d)
+            
+            # Check if perfect balance is possible
+            if available_p == ideal_p and available_d == ideal_d:
+                balance_quality = 'perfect'
+            elif available_p + available_d == jury_size:
+                balance_quality = 'complete_but_imbalanced'
+            else:
+                balance_quality = 'incomplete'
+            
+            quality_estimates['sequential_predictions'][f'jury_{jury_num}'] = {
+                'predicted_p': available_p,
+                'predicted_d': available_d,
+                'predicted_balance_quality': balance_quality
+            }
+            
+            # Update remaining counts (simulate assignment)
+            remaining_p -= available_p
+            remaining_d -= available_d
+            remaining_total -= jury_size
     
-    # Check if we have enough of each gender
-    total_male_needed = sum(optimal_male_dist)
-    total_female_needed = sum(optimal_female_dist)
-    
-    if male_count < total_male_needed:
-        gender_info['has_enough_male'] = False
-        gender_info['optimal_male_distribution'] = calculate_optimal_distribution(male_count, num_juries)
-        # Recalculate female distribution based on remaining spots
-        gender_info['optimal_female_distribution'] = [
-            jury_size - m for m in gender_info['optimal_male_distribution']
-        ]
-    elif female_count < total_female_needed:
-        gender_info['has_enough_female'] = False
-        gender_info['optimal_female_distribution'] = calculate_optimal_distribution(female_count, num_juries)
-        # Recalculate male distribution based on remaining spots
-        gender_info['optimal_male_distribution'] = [
-            jury_size - f for f in gender_info['optimal_female_distribution']
-        ]
+    # Determine overall quality
+    if fillable_juries == num_juries:
+        perfect_juries = sum(1 for pred in quality_estimates['sequential_predictions'].values() 
+                           if pred['predicted_balance_quality'] == 'perfect')
+        if perfect_juries == num_juries:
+            quality_estimates['overall_quality'] = 'excellent'
+        elif perfect_juries >= num_juries // 2:
+            quality_estimates['overall_quality'] = 'good'
+        else:
+            quality_estimates['overall_quality'] = 'fair'
     else:
-        # We have enough of both genders
-        gender_info['optimal_male_distribution'] = optimal_male_dist
-        gender_info['optimal_female_distribution'] = optimal_female_dist
+        quality_estimates['overall_quality'] = 'limited'
     
-    # Check if the final distribution is feasible
-    total_gender_assigned = sum(gender_info['optimal_male_distribution']) + sum(gender_info['optimal_female_distribution'])
-    if total_gender_assigned != num_juries * jury_size:
-        gender_info['gender_balance_possible'] = False
-    
-    return gender_info
+    return quality_estimates
 
 
 def summarize_juror_data(df):
@@ -330,7 +259,7 @@ def summarize_juror_data(df):
         'total_jurors': len(df)
     }
     
-    # Add leaning summary if present
+    # Add leaning summary if present (including granular)
     if 'Final_Leaning' in df.columns:
         summary['leaning_counts'] = df['Final_Leaning'].value_counts().to_dict()
         summary['leaning_percentages'] = (df['Final_Leaning'].value_counts(normalize=True) * 100).to_dict()
@@ -431,7 +360,7 @@ def prepare_data_for_optimization(df, demographic_vars):
 def process_juror_data(file_path, num_juries, jury_size, demographic_vars=None, drop_missing=True):
     """
     Main function to process juror data from file to optimization-ready format.
-    Enhanced with hierarchical balance checking.
+    Adapted for sequential optimization approach.
     
     Parameters:
     file_path (str): Path to the Excel file containing juror data
@@ -444,7 +373,6 @@ def process_juror_data(file_path, num_juries, jury_size, demographic_vars=None, 
     dict: Dictionary containing all processed data and information
     """
     if demographic_vars is None:
-        # Fixed the missing comma bug!
         demographic_vars = ['Final_Leaning', 'Gender', 'Race', 'Age', 'Education', 'Marital']
     
     # Load data
@@ -457,22 +385,35 @@ def process_juror_data(file_path, num_juries, jury_size, demographic_vars=None, 
     else:
         print(message)  # Print message about dropped rows if any
     
-    # Check feasibility with enhanced balance checking
-    feasibility_result = check_optimization_feasibility(df, num_juries, jury_size)
+    # Check feasibility for sequential optimization
+    feasibility_result = check_sequential_optimization_feasibility(df, num_juries, jury_size)
     
-    # Unpack the enhanced feasibility result
-    is_feasible, feasibility_message, balance_info = feasibility_result
+    # Unpack the feasibility result
+    is_feasible, feasibility_message, feasibility_info = feasibility_result
     
     if not is_feasible:
         raise ValueError(feasibility_message)
     
-    # Add a note about unassigned jurors if applicable
-    if balance_info['unassigned_count'] > 0:
-        print(f"Note: {balance_info['unassigned_count']} jurors will be initially marked as unassigned")
+    # Generate balance quality estimates
+    quality_estimates = estimate_jury_balance_quality(df, num_juries, jury_size)
     
-    # Print balance information
-    if not balance_info.get('gender_balance_possible', True):
-        print("Note: Perfect gender balance may not be achievable given other constraints")
+    # Print sequential optimization analysis
+    print("=== SEQUENTIAL OPTIMIZATION ANALYSIS ===")
+    print(f"Total jurors available: {feasibility_info['total_jurors_available']}")
+    print(f"Total jurors needed: {feasibility_info['total_jurors_needed']}")
+    print(f"Complete juries possible: {feasibility_info['complete_juries_possible']} out of {num_juries}")
+    
+    if feasibility_info.get('excess_jurors', 0) > 0:
+        print(f"Excess jurors: {feasibility_info['excess_jurors']} will remain unassigned")
+    
+    # Print balance predictions
+    if 'sequential_predictions' in quality_estimates:
+        print(f"Balance Quality Predictions:")
+        for jury_key, prediction in quality_estimates['sequential_predictions'].items():
+            jury_num = jury_key.split('_')[1]
+            print(f"  - Jury {jury_num}: {prediction['predicted_p']}P/{prediction['predicted_d']}D ({prediction['predicted_balance_quality']})")
+        
+        print(f"Overall expected quality: {quality_estimates['overall_quality']}")
     
     # Summarize data
     summary = summarize_juror_data(df)
@@ -480,7 +421,7 @@ def process_juror_data(file_path, num_juries, jury_size, demographic_vars=None, 
     # Prepare for optimization
     prepared_df, encodings, category_counts = prepare_data_for_optimization(df, demographic_vars)
     
-    # Return all processed data with enhanced balance info
+    # Return all processed data with sequential optimization info
     return {
         'original_data': df,
         'prepared_data': prepared_df,
@@ -491,8 +432,10 @@ def process_juror_data(file_path, num_juries, jury_size, demographic_vars=None, 
         'jury_size': jury_size,
         'demographic_vars': demographic_vars,
         'feasibility_message': feasibility_message,
-        'balance_info': balance_info,  # Enhanced balance info including gender
-        'will_have_unassigned': balance_info['unassigned_count'] > 0
+        'feasibility_info': feasibility_info,  # Sequential-specific feasibility info
+        'quality_estimates': quality_estimates,  # Balance quality predictions
+        'optimization_approach': 'sequential',
+        'will_have_unassigned': feasibility_info['excess_jurors'] > 0
     }
 
 
@@ -511,10 +454,19 @@ if __name__ == "__main__":
         if 'leaning_counts' in result['summary']:
             print(f"Leaning distribution: {result['summary']['leaning_counts']}")
         
-        # Print balance info
-        balance_info = result['balance_info']
-        print(f"P/D balance possible: P={balance_info['has_enough_p']}, D={balance_info['has_enough_d']}")
-        print(f"Gender balance possible: {balance_info.get('gender_balance_possible', 'Unknown')}")
+        # Print feasibility info
+        feasibility_info = result['feasibility_info']
+        print(f"Can fill all juries: {feasibility_info['can_fill_all_juries']}")
+        print(f"Complete juries possible: {feasibility_info['complete_juries_possible']}")
+        
+        # Print quality estimates
+        quality_estimates = result['quality_estimates']
+        print(f"Expected overall quality: {quality_estimates['overall_quality']}")
+        
+        if 'sequential_predictions' in quality_estimates:
+            print("Sequential balance predictions:")
+            for jury_key, prediction in quality_estimates['sequential_predictions'].items():
+                print(f"  {jury_key}: {prediction}")
         
     except Exception as e:
         print(f"Error processing data: {str(e)}")
