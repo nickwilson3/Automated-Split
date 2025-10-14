@@ -22,6 +22,13 @@ from modules.utils import (
     export_assignments_for_editing,
     load_edited_assignments
 )
+from modules.data_processing_sim import process_juror_data as process_juror_data_simultaneous
+from modules.optimization_sim import optimize_jury_assignment as optimize_jury_assignment_simultaneous
+from modules.utils_sim import (
+    export_results_to_excel as export_results_to_excel_simultaneous,
+    create_html_report as create_html_report_simultaneous,
+    analyze_optimization_results as analyze_optimization_results_simultaneous
+)
 
 app = Flask(__name__)
 # In app.py, after creating the Flask app
@@ -95,15 +102,17 @@ def upload_file():
         # Store file path in session
         session['file_path'] = file_path
         
-        # Get form data
+         # Get form data
         num_juries = int(request.form.get('num_juries', 2))
         jury_size = int(request.form.get('jury_size', 12))
         
-        # Get demographic variable rankings for weighted optimization (TIER 3 only)
-        # Note: Final_Leaning and Gender are now handled by hierarchical constraints
+        # Get optimization method selection (DEFAULT: simultaneous)
+        optimization_method = request.form.get('optimization_method', 'simultaneous')
+        
+        # Get demographic variable rankings for weighted optimization
         rankings = {
-            'Final_Leaning': 5.0,  # Not used - handled by TIER 1 hard constraints
-            'Gender': 5.0,         # Not used - handled by TIER 2 soft constraints
+            'Final_Leaning': 5.0,
+            'Gender': 5.0,
             'Race': float(5 - int(request.form.get('race_rank', 1))),
             'AgeGroup': float(5 - int(request.form.get('age_rank', 2))),
             'Education': float(5 - int(request.form.get('education_rank', 3))),
@@ -114,55 +123,49 @@ def upload_file():
         session['num_juries'] = num_juries
         session['jury_size'] = jury_size
         session['rankings'] = rankings
+        session['optimization_method'] = optimization_method
         
         # Process data and run optimization
         try:
-            print("Starting hierarchical jury optimization...")
-            print(f"Rankings for TIER 3 optimization only: {rankings}")
-            print("Note: Final_Leaning (TIER 1) and Gender (TIER 2) use hierarchical constraints")
+            print(f"Using {optimization_method} optimization method")
             
-            # Process the data with nested maximin approach
-            data_dict = process_juror_data(file_path, num_juries, jury_size)
-            
-            print("Data processed successfully, now converting column names...")
-            # Convert column names with spaces to underscore format for consistency in templates
-            if 'original_data' in data_dict and isinstance(data_dict['original_data'], pd.DataFrame):
-                print("Original column names:", data_dict['original_data'].columns.tolist())
-                # Only replace spaces if the column name doesn't already have underscores
-                data_dict['original_data'].columns = [col.replace(' ', '_') for col in data_dict['original_data'].columns]
-                print("Updated column names:", data_dict['original_data'].columns.tolist())
-            
-            # Print balance info from nested maximin data processing
-            balance_info = data_dict.get('balance_info', {})
-            print(f"Hierarchical balance analysis:")
-            print(f"  - TIER 1: Overall P/D balance achievable: P={balance_info.get('has_enough_p_overall', 'Unknown')}, D={balance_info.get('has_enough_d_overall', 'Unknown')}")
-            print(f"  - TIER 2: Gender balance achievable: {balance_info.get('gender_balance_possible', 'Unknown')}")
-            print(f"  - TIER 2: Granular leaning counts: {balance_info.get('granular_counts', {})}")
-            print(f"  - Will use TIER 1 hard constraints for overall P/D: Always")
-            print(f"  - Will use TIER 2 soft constraints for Gender: Always")
-            print(f"  - Will use TIER 2 soft constraints for granular leaning: Always")
-            
-            print("Running hierarchical optimization...")
-            # Run hierarchical optimization with proper constraint hierarchy
-            results = optimize_jury_assignment(data_dict, rankings)
-            print("Hierarchical optimization completed successfully.")
-            
-            # Print optimization results summary
-            if 'solution_quality' in results:
-                solution_quality = results['solution_quality']
-                print(f"Optimization status: {solution_quality['status']}")
-                if 'hierarchical_balance' in solution_quality:
-                    hierarchical = solution_quality['hierarchical_balance']
-                    print(f"TIER 1: Jury size correct: {hierarchical.get('tier1_jury_size', 'Unknown')}")
-                    print(f"TIER 1: Basic P/D balance achieved: {hierarchical.get('tier1_basic_pd', 'Unknown')}")
-                    print(f"TIER 2: Granular P+/P/D/D+ balance achieved: {hierarchical.get('tier2_granular', 'Unknown')}")
-                    print(f"TIER 2: Gender balance achieved: {hierarchical.get('tier2_gender', 'Unknown')}")
+            # Route to appropriate optimization method
+            if optimization_method == 'sequential':
+                print("Starting sequential jury optimization...")
                 
-                constraint_hierarchy = solution_quality.get('constraint_hierarchy', {})
-                print(f"Constraint hierarchy used: {constraint_hierarchy}")
+                # Process data with sequential method
+                data_dict = process_juror_data(file_path, num_juries, jury_size)
+                
+                # Convert column names for consistency
+                if 'original_data' in data_dict and isinstance(data_dict['original_data'], pd.DataFrame):
+                    data_dict['original_data'].columns = [col.replace(' ', '_') for col in data_dict['original_data'].columns]
+                
+                # Run sequential optimization
+                results = optimize_jury_assignment(data_dict, rankings)
+                
+            else:  # simultaneous (DEFAULT)
+                print("Starting simultaneous jury optimization...")
+                
+                # Process data with simultaneous method
+                data_dict = process_juror_data_simultaneous(file_path, num_juries, jury_size)
+                
+                # Convert rankings to tier weights for simultaneous optimization
+                tier_weights = {
+                    'tier1_pd_balance': 1000.0,
+                    'tier2_granular_leaning': 100.0,
+                    'tier2_gender': 90.0,
+                    'tier3_race': rankings['Race'],
+                    'tier3_age': rankings['AgeGroup'],
+                    'tier3_education': rankings['Education'],
+                    'tier3_marital': rankings['Marital']
+                }
+                
+                # Run simultaneous optimization
+                results = optimize_jury_assignment_simultaneous(data_dict, tier_weights)
             
-            print("Saving results to JSON...")
-            # Save results to a JSON file
+            print(f"{optimization_method.capitalize()} optimization completed successfully.")
+            
+            # Save results to JSON (common for both methods)
             results_file = os.path.join(session_folder, 'results.json')
             
             # Convert DataFrame to dict for JSON serialization
@@ -171,17 +174,14 @@ def upload_file():
             if 'detailed_assignments' in results:
                 results['detailed_assignments'] = results['detailed_assignments'].to_dict('records')
             
-            # Use the custom serializer for numpy types
             with open(results_file, 'w') as f:
                 json.dump(results, f, default=json_numpy_serializer)
             
-            print("Exporting jury assignments for editing...")
             # Export jury assignments for editing
             edit_file_path = os.path.join(session_folder, "jury_assignments_for_editing.xlsx")
             export_assignments_for_editing(results, edit_file_path)
             session['edit_file_path'] = edit_file_path
             
-            print("Redirecting to edit assignments page...")
             # Redirect to edit page
             return redirect(url_for('edit_assignments'))
         
@@ -215,10 +215,14 @@ def edit_assignments():
     # Get unique juries for the dropdown
     juries = sorted([j for j in assignments['jury'].unique() if j != 'Unassigned'])
     
+     # Get optimization method from session (DEFAULT: simultaneous)
+    optimization_method = session.get('optimization_method', 'simultaneous')
+    
     return render_template('edit.html', 
                           assignments=assignments.to_dict('records'), 
                           juries=juries,
-                          jury_size=session.get('jury_size', 12))
+                          jury_size=session.get('jury_size', 12),
+                          optimization_method=optimization_method)  # NEW: Pass to template
 
 @app.route('/save_edits', methods=['POST'])
 def save_edits():
@@ -312,6 +316,9 @@ def generate_report():
     
     with open(results_file, 'r') as f:
         results = json.load(f)
+    
+    # Get the optimization method from session (DEFAULT: simultaneous)
+    optimization_method = session.get('optimization_method', 'simultaneous')
     
     # Convert dict back to DataFrame for processing
     if 'summary' in results:
@@ -408,19 +415,20 @@ def generate_report():
                     updated_results['solution_quality']['hierarchical_balance']['manually_edited'] = True
                 results['solution_quality'] = updated_results['solution_quality']
     
-    # Create HTML report with embedded visualizations and hierarchical balance info
+    # Add optimization method to results for reporting
+    results['optimization_method'] = optimization_method
+    
+    # Create HTML report - USE SINGLE REPORT FUNCTION
     html_report_path = os.path.join(session_folder, 'jury_report.html')
     create_html_report(results, html_report_path, include_visualizations=True)
     
-    # Store HTML report path in session
-    session['html_report_path'] = html_report_path
-    
-    # Also export to Excel for detailed data
+    # Export to Excel - USE SINGLE EXPORT FUNCTION
     excel_path = os.path.join(session_folder, 'jury_assignments.xlsx')
     export_results_to_excel(results, excel_path)
+    
+    session['html_report_path'] = html_report_path
     session['excel_path'] = excel_path
     
-    # Redirect to success page
     return redirect(url_for('success'))
 
 @app.route('/success')

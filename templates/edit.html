@@ -148,6 +148,7 @@
     <script type="text/javascript">
         // Target jury size from backend
         const targetJurySize = {{ jury_size }};
+        const optimizationMethod = "{{ optimization_method }}";
     </script>
     
     <script>
@@ -275,136 +276,188 @@
                 
                 // Calculate optimal targets based on total available jurors
                 const calculateOptimalTargets = () => {
-                // Each jury should ideally have exactly targetJurySize jurors
-                const numJuries = juries.length;
-                
-                // Check if we have enough jurors total to fill all juries
-                if (totalP + totalD < numJuries * targetJurySize) {
-                    // Not enough total jurors - distribute what we have
-                    // Use maximin for both P and D
-                    const optimalPDistribution = calculateOptimalDistribution(totalP, numJuries);
-                    const optimalDDistribution = calculateOptimalDistribution(totalD, numJuries);
+                    // Each jury should ideally have exactly targetJurySize jurors
+                    const numJuries = juries.length;
+                    
+                    // Check if we have enough jurors total to fill all juries
+                    if (totalP + totalD < numJuries * targetJurySize) {
+                        // Not enough total jurors - distribute what we have
+                        // Use maximin for both P and D
+                        const optimalPDistribution = calculateOptimalDistribution(totalP, numJuries);
+                        const optimalDDistribution = calculateOptimalDistribution(totalD, numJuries);
+                        
+                        return {
+                            optimalPDistribution,
+                            optimalDDistribution
+                        };
+                    }
+                    
+                    // We have enough total jurors to fill all juries
+                    // Now check P/D balance constraints
+                    
+                    // Calculate ideal targets if we had perfect balance
+                    const idealPPerJury = Math.floor(targetJurySize / 2);
+                    const idealDPerJury = targetJurySize - idealPPerJury; // Handles odd jury sizes
+                    
+                    const totalPNeeded = idealPPerJury * numJuries;
+                    const totalDNeeded = idealDPerJury * numJuries;
+                    
+                    // Check if we have enough of each leaning for ideal distribution
+                    if (totalP >= totalPNeeded && totalD >= totalDNeeded) {
+                        // Perfect case - we can achieve ideal balance
+                        return {
+                            optimalPDistribution: Array(numJuries).fill(idealPPerJury),
+                            optimalDDistribution: Array(numJuries).fill(idealDPerJury)
+                        };
+                    }
+                    
+                    // We can't achieve perfect balance - use maximin approach
+                    let optimalPDistribution, optimalDDistribution;
+                    
+                    if (totalP < totalPNeeded) {
+                        // Not enough P jurors - distribute P using maximin
+                        optimalPDistribution = calculateOptimalDistribution(totalP, numJuries);
+                        
+                        // Calculate D distribution to fill remaining spots
+                        optimalDDistribution = optimalPDistribution.map(pCount => {
+                            return Math.min(targetJurySize - pCount, Math.floor(totalD / numJuries) + (totalD % numJuries > 0 ? 1 : 0));
+                        });
+                        
+                        // Adjust D distribution to use exactly totalD jurors
+                        let totalDUsed = optimalDDistribution.reduce((sum, d) => sum + d, 0);
+                        let dRemaining = totalD - totalDUsed;
+                        
+                        // Distribute remaining D jurors
+                        for (let i = 0; i < numJuries && dRemaining > 0; i++) {
+                            const maxDForJury = targetJurySize - optimalPDistribution[i];
+                            if (optimalDDistribution[i] < maxDForJury) {
+                                const canAdd = Math.min(dRemaining, maxDForJury - optimalDDistribution[i]);
+                                optimalDDistribution[i] += canAdd;
+                                dRemaining -= canAdd;
+                            }
+                        }
+                        
+                    } else if (totalD < totalDNeeded) {
+                        // Not enough D jurors - distribute D using maximin
+                        optimalDDistribution = calculateOptimalDistribution(totalD, numJuries);
+                        
+                        // Calculate P distribution to fill remaining spots
+                        optimalPDistribution = optimalDDistribution.map(dCount => {
+                            return Math.min(targetJurySize - dCount, Math.floor(totalP / numJuries) + (totalP % numJuries > 0 ? 1 : 0));
+                        });
+                        
+                        // Adjust P distribution to use exactly totalP jurors
+                        let totalPUsed = optimalPDistribution.reduce((sum, p) => sum + p, 0);
+                        let pRemaining = totalP - totalPUsed;
+                        
+                        // Distribute remaining P jurors
+                        for (let i = 0; i < numJuries && pRemaining > 0; i++) {
+                            const maxPForJury = targetJurySize - optimalDDistribution[i];
+                            if (optimalPDistribution[i] < maxPForJury) {
+                                const canAdd = Math.min(pRemaining, maxPForJury - optimalPDistribution[i]);
+                                optimalPDistribution[i] += canAdd;
+                                pRemaining -= canAdd;
+                            }
+                        }
+                    } else {
+                        // This shouldn't happen given our earlier checks, but fallback to ideal
+                        optimalPDistribution = Array(numJuries).fill(idealPPerJury);
+                        optimalDDistribution = Array(numJuries).fill(idealDPerJury);
+                    }
                     
                     return {
                         optimalPDistribution,
                         optimalDDistribution
                     };
-                }
-                
-                // We have enough total jurors to fill all juries
-                // Now check P/D balance constraints
-                
-                // Calculate ideal targets if we had perfect balance
-                const idealPPerJury = Math.floor(targetJurySize / 2);
-                const idealDPerJury = targetJurySize - idealPPerJury; // Handles odd jury sizes
-                
-                const totalPNeeded = idealPPerJury * numJuries;
-                const totalDNeeded = idealDPerJury * numJuries;
-                
-                // Check if we have enough of each leaning for ideal distribution
-                if (totalP >= totalPNeeded && totalD >= totalDNeeded) {
-                    // Perfect case - we can achieve ideal balance
-                    return {
-                        optimalPDistribution: Array(numJuries).fill(idealPPerJury),
-                        optimalDDistribution: Array(numJuries).fill(idealDPerJury)
-                    };
-                }
-                
-                // We can't achieve perfect balance - use maximin approach
-                let optimalPDistribution, optimalDDistribution;
-                
-                if (totalP < totalPNeeded) {
-                    // Not enough P jurors - distribute P using maximin
-                    optimalPDistribution = calculateOptimalDistribution(totalP, numJuries);
-                    
-                    // Calculate D distribution to fill remaining spots
-                    optimalDDistribution = optimalPDistribution.map(pCount => {
-                        return Math.min(targetJurySize - pCount, Math.floor(totalD / numJuries) + (totalD % numJuries > 0 ? 1 : 0));
-                    });
-                    
-                    // Adjust D distribution to use exactly totalD jurors
-                    let totalDUsed = optimalDDistribution.reduce((sum, d) => sum + d, 0);
-                    let dRemaining = totalD - totalDUsed;
-                    
-                    // Distribute remaining D jurors
-                    for (let i = 0; i < numJuries && dRemaining > 0; i++) {
-                        const maxDForJury = targetJurySize - optimalPDistribution[i];
-                        if (optimalDDistribution[i] < maxDForJury) {
-                            const canAdd = Math.min(dRemaining, maxDForJury - optimalDDistribution[i]);
-                            optimalDDistribution[i] += canAdd;
-                            dRemaining -= canAdd;
-                        }
-                    }
-                    
-                } else if (totalD < totalDNeeded) {
-                    // Not enough D jurors - distribute D using maximin
-                    optimalDDistribution = calculateOptimalDistribution(totalD, numJuries);
-                    
-                    // Calculate P distribution to fill remaining spots
-                    optimalPDistribution = optimalDDistribution.map(dCount => {
-                        return Math.min(targetJurySize - dCount, Math.floor(totalP / numJuries) + (totalP % numJuries > 0 ? 1 : 0));
-                    });
-                    
-                    // Adjust P distribution to use exactly totalP jurors
-                    let totalPUsed = optimalPDistribution.reduce((sum, p) => sum + p, 0);
-                    let pRemaining = totalP - totalPUsed;
-                    
-                    // Distribute remaining P jurors
-                    for (let i = 0; i < numJuries && pRemaining > 0; i++) {
-                        const maxPForJury = targetJurySize - optimalDDistribution[i];
-                        if (optimalPDistribution[i] < maxPForJury) {
-                            const canAdd = Math.min(pRemaining, maxPForJury - optimalPDistribution[i]);
-                            optimalPDistribution[i] += canAdd;
-                            pRemaining -= canAdd;
-                        }
-                    }
-                } else {
-                    // This shouldn't happen given our earlier checks, but fallback to ideal
-                    optimalPDistribution = Array(numJuries).fill(idealPPerJury);
-                    optimalDDistribution = Array(numJuries).fill(idealDPerJury);
-                }
-                
-                return {
-                    optimalPDistribution,
-                    optimalDDistribution
                 };
-            };
                 
-                const { optimalPDistribution, optimalDDistribution } = calculateOptimalTargets();
-                
-                // Second pass: check each jury against its targets
-                juries.forEach((jury, index) => {
-                    const stats = juryStats[jury];
-                    
-                    // Convert numeric jury to letter for display
-                    let juryLabel;
-                    if (!isNaN(jury)) {
-                        juryLabel = String.fromCharCode(64 + parseInt(jury)); // Convert 1 to A, 2 to B, etc.
-                    } else {
-                        juryLabel = jury;
-                    }
-                    
-                    // Check jury size
-                    if (stats.total !== targetJurySize) {
-                        issues.push(`Jury ${juryLabel} has ${stats.total} jurors (target is ${targetJurySize}).`);
-                    }
-                    
-                    // Use targets for this jury from the optimal distribution
-                    // But only if we have enough index values in our distributions
-                    if (index < optimalPDistribution.length && index < optimalDDistribution.length) {
-                        const targetP = optimalPDistribution[index];
-                        const targetD = optimalDDistribution[index];
+                // DIFFERENT LOGIC BASED ON OPTIMIZATION METHOD
+                if (optimizationMethod === 'sequential') {
+                    // SEQUENTIAL: Check each jury individually
+                    juries.forEach((jury, index) => {
+                        const stats = juryStats[jury];
                         
-                        // Store targets for reference
-                        juryStats[jury].targetP = targetP;
-                        juryStats[jury].targetD = targetD;
+                        // Convert numeric jury to letter for display
+                        let juryLabel;
+                        if (!isNaN(jury)) {
+                            juryLabel = String.fromCharCode(64 + parseInt(jury));
+                        } else {
+                            juryLabel = jury;
+                        }
                         
-                        // Check P/D balance against optimal targets only if total is correct
-                        if (stats.pCount !== targetP || stats.dCount !== targetD) {
-                            issues.push(`Jury ${juryLabel} has a P/D balance of ${stats.pCount}:${stats.dCount}, but the optimal balance is ${targetP}:${targetD}.`);
+                        // Check jury size
+                        if (stats.total !== targetJurySize) {
+                            issues.push(`Jury ${juryLabel} has ${stats.total} jurors (target is ${targetJurySize}).`);
+                        }
+                        
+                        // Check if jury has acceptable P/D balance
+                        const idealP = Math.floor(targetJurySize / 2);
+                        const idealD = targetJurySize - idealP;
+                        
+                        // Sequential allows some flexibility - warn if off by more than 1
+                        if (Math.abs(stats.pCount - idealP) > 1 || Math.abs(stats.dCount - idealD) > 1) {
+                            issues.push(`Jury ${juryLabel} has a P/D balance of ${stats.pCount}:${stats.dCount}, which deviates from the ideal ${idealP}:${idealD}.`);
+                        }
+                    });
+                    
+                } else {
+                    // SIMULTANEOUS: Check similarity between juries
+                    const { optimalPDistribution, optimalDDistribution } = calculateOptimalTargets();
+                    
+                    // Check each jury against optimal distribution
+                    juries.forEach((jury, index) => {
+                        const stats = juryStats[jury];
+                        
+                        // Convert numeric jury to letter for display
+                        let juryLabel;
+                        if (!isNaN(jury)) {
+                            juryLabel = String.fromCharCode(64 + parseInt(jury));
+                        } else {
+                            juryLabel = jury;
+                        }
+                        
+                        // Check jury size
+                        if (stats.total !== targetJurySize) {
+                            issues.push(`Jury ${juryLabel} has ${stats.total} jurors (target is ${targetJurySize}).`);
+                        }
+                        
+                        // Check against optimal targets for similarity
+                        if (index < optimalPDistribution.length && index < optimalDDistribution.length) {
+                            const targetP = optimalPDistribution[index];
+                            const targetD = optimalDDistribution[index];
+                            
+                            // Store targets for reference
+                            juryStats[jury].targetP = targetP;
+                            juryStats[jury].targetD = targetD;
+                            
+                            if (stats.pCount !== targetP || stats.dCount !== targetD) {
+                                issues.push(`Jury ${juryLabel} has a P/D balance of ${stats.pCount}:${stats.dCount}, but for maximum similarity the optimal balance is ${targetP}:${targetD}.`);
+                            }
+                        }
+                    });
+                    
+                    // Check pairwise similarity
+                    for (let i = 0; i < juries.length; i++) {
+                        for (let j = i + 1; j < juries.length; j++) {
+                            const jury1 = juries[i];
+                            const jury2 = juries[j];
+                            
+                            const label1 = !isNaN(jury1) ? String.fromCharCode(64 + parseInt(jury1)) : jury1;
+                            const label2 = !isNaN(jury2) ? String.fromCharCode(64 + parseInt(jury2)) : jury2;
+                            
+                            const pDiff = Math.abs(juryStats[jury1].pCount - juryStats[jury2].pCount);
+                            const dDiff = Math.abs(juryStats[jury1].dCount - juryStats[jury2].dCount);
+                            
+                            // Warn if juries differ by more than 1 in P or D
+                            if (pDiff > 1) {
+                                issues.push(`Jury ${label1} and Jury ${label2} differ by ${pDiff} P-leaning jurors (similarity goal not met).`);
+                            }
+                            if (dDiff > 1) {
+                                issues.push(`Jury ${label1} and Jury ${label2} differ by ${dDiff} D-leaning jurors (similarity goal not met).`);
+                            }
                         }
                     }
-                });
+                }
                 
                 // Track unassigned jurors
                 const unassignedJurors = assignmentsData.filter(juror => juror.jury === 'Unassigned');
@@ -424,8 +477,8 @@
                     issues: issues,
                     juryStats: juryStats,
                     unassignedCount: unassignedCount,
-                    optimalPDistribution: optimalPDistribution,
-                    optimalDDistribution: optimalDDistribution,
+                    optimalPDistribution: optimizationMethod === 'simultaneous' ? calculateOptimalTargets().optimalPDistribution : null,
+                    optimalDDistribution: optimizationMethod === 'simultaneous' ? calculateOptimalTargets().optimalDDistribution : null,
                     totalP: totalP,
                     totalD: totalD
                 };

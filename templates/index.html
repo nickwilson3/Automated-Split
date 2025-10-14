@@ -84,7 +84,21 @@
                                     </div>
                                 </div>
                             </div>
-                            
+                            <div class="mb-4">
+                                <label class="form-label">Optimization Method</label>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="optimization_method" id="simultaneous" value="simultaneous" checked>
+                                    <label class="form-check-label" for="simultaneous">
+                                        <strong>Simultaneous Optimization</strong> - Optimizes all juries together to maximize similarity between them. Best for creating balanced juries.
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="optimization_method" id="sequential" value="sequential">
+                                    <label class="form-check-label" for="sequential">
+                                        <strong>Sequential Optimization</strong> - Fills juries one at a time (Jury A first, then Jury B, etc.). Guarantees each jury is filled completely.
+                                    </label>
+                                </div>
+                            </div>
                             <div class="d-grid gap-2">
                                 <button type="submit" class="btn btn-primary btn-lg">Split Jury</button>
                             </div>

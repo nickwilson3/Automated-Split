@@ -190,6 +190,10 @@ def create_html_report(results, output_path=None, include_visualizations=True):
     # Dictionary to store base64-encoded images
     embedded_images = {}
     
+    # Get optimization method from results
+    optimization_method = results.get('optimization_method', 'sequential')
+    optimization_method_display = optimization_method.capitalize()
+    
     # Create and embed visualizations if requested
     if include_visualizations:
         # Get jury analysis data
@@ -477,16 +481,49 @@ def create_html_report(results, output_path=None, include_visualizations=True):
             .metric { font-weight: bold; }
             .visualization { margin: 20px 0; text-align: center; }
             .tier-info { background-color: #e8f5e9; padding: 10px; border-radius: 5px; margin: 10px 0; }
+            .method-badge { 
+                display: inline-block;
+                padding: 8px 15px;
+                border-radius: 5px;
+                font-weight: bold;
+                margin: 10px 0;
+                font-size: 1.1em;
+            }
+            .method-simultaneous { background-color: #e3f2fd; color: #1565c0; }
+            .method-sequential { background-color: #fff3e0; color: #e65100; }
         </style>
     </head>
     <body>
         <h1>Jury Selection Optimization Report</h1>
         <p>Generated on: """ + datetime.now().strftime("%Y-%m-%d %H:%M:%S") + """</p>
         
+        <!-- Optimization Method Badge -->
+        <div class="method-badge method-""" + optimization_method + """">
+            Optimization Method: """ + optimization_method_display + """
+        </div>
+        
         <div class="section">
-            <h2>Hierarchical Optimization Summary</h2>
+            <h2>""" + optimization_method_display + """ Optimization Summary</h2>
             <div class="tier-info">
-                <h4>Constraint Hierarchy Applied:</h4>
+                <h4>Optimization Approach:</h4>
+    """
+    
+    # Add method-specific description
+    if optimization_method == 'simultaneous':
+        html_content += """
+                <p><strong>Method:</strong> Simultaneous optimization of all juries</p>
+                <p><strong>Goal:</strong> Maximize similarity between all juries by minimizing demographic differences</p>
+                <p><strong>Advantage:</strong> Ensures all juries are as similar as possible rather than prioritizing one jury over others</p>
+        """
+    else:  # sequential
+        html_content += """
+                <p><strong>Method:</strong> Sequential optimization (one jury at a time)</p>
+                <p><strong>Goal:</strong> Fill juries in order, ensuring each jury is completely filled before moving to the next</p>
+                <p><strong>Advantage:</strong> Guarantees complete jury filling with predictable priority order</p>
+        """
+    
+    html_content += """
+                <h4>Constraint Hierarchy:</h4>
                 <p><strong>TIER 1 (INVIOLABLE):</strong> Jury size and basic P/D balance - hard constraints that can never be violated</p>
                 <p><strong>TIER 2 (SECONDARY):</strong> Granular P+/P/D/D+ balance and gender balance - soft constraints with high penalty</p>
                 <p><strong>TIER 3 (TERTIARY):</strong> Other demographics - weighted optimization with lower penalty</p>
@@ -501,7 +538,7 @@ def create_html_report(results, output_path=None, include_visualizations=True):
             <p><span class="metric">Objective Value:</span> {solution_quality['objective_value']}</p>
         """
         
-        # Add hierarchical balance results
+        # Add hierarchical balance results if available
         if 'hierarchical_balance' in solution_quality:
             balance = solution_quality['hierarchical_balance']
             html_content += "<h3>Hierarchical Balance Achievement</h3>"
@@ -513,16 +550,7 @@ def create_html_report(results, output_path=None, include_visualizations=True):
             html_content += f"<tr><td>TIER 2</td><td>Gender Balance</td><td>{'✓' if balance.get('tier2_gender', False) else '✗'}</td></tr>"
             html_content += "</table>"
         
-        # Add deviations if available
-        if 'deviations' in solution_quality:
-            html_content += "<h3>Soft Constraint Deviations</h3>"
-            html_content += "<table>"
-            html_content += "<tr><th>Demographic Variable</th><th>Total Deviation</th></tr>"
-            
-            for var, dev in solution_quality['deviations'].items():
-                html_content += f"<tr><td>{var}</td><td>{dev}</td></tr>"
-            
-            html_content += "</table>"
+
     
     html_content += """
         </div>
